@@ -1,0 +1,68 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+import structlog
+
+from app.api import prompts, results, quiz, monitoring
+from app.middleware.logging import LoggingMiddleware
+from app.middleware.error_handler import error_handler_middleware
+from core.config import settings
+from core.database import create_db_and_tables, close_db_connection
+
+logger = structlog.get_logger()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期管理"""
+    logger.info("Starting up quiz-lib backend service")
+    # 启动时创建数据库表
+    await create_db_and_tables()
+    yield
+    # 关闭时清理资源
+    await close_db_connection()
+    logger.info("Shutting down quiz-lib backend service")
+
+
+app = FastAPI(
+    title="Quiz-Lib Backend API",
+    description="AI驱动的题库生成系统后端API",
+    version="1.0.0",
+    lifespan=lifespan,
+)
+
+# 配置CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 添加自定义中间件
+app.add_middleware(LoggingMiddleware)
+app.middleware("http")(error_handler_middleware)
+
+# 注册路由
+app.include_router(prompts.router, prefix="/api/v1/prompts", tags=["prompts"])
+app.include_router(results.router, prefix="/api/v1/results", tags=["results"])
+app.include_router(quiz.router, prefix="/api/v1/quiz", tags=["quiz"])
+app.include_router(monitoring.router, prefix="/api/v1/monitoring", tags=["monitoring"])
+
+
+@app.get("/")
+async def root():
+    """根路径"""
+    return {
+        "message": "Quiz-Lib Backend API",
+        "version": "1.0.0",
+        "docs": "/docs",
+        "redoc": "/redoc",
+    }
+
+
+@app.get("/health")
+async def health_check():
+    """健康检查"""
+    return {"status": "healthy", "service": "quiz-lib-backend"}
