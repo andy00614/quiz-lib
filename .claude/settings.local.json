@@ -1,7 +1,21 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(git commit:*)",
+      "Bash(find:*)",
+      "Bash(npx shadcn-ui@latest add:*)",
+      "Bash(npx shadcn@latest add:*)",
+      "Bash(npm install:*)",
+      "Bash(ls:*)",
+      "Bash(yarn add:*)",
+      "Bash(pnpm add:*)",
+      "Bash(npm run:*)",
+      "Bash(mv:*)",
+      "Bash(rmdir:*)",
+      "Bash(true)",
+      "Bash(pkill:*)",
+      "Bash(git add:*)"
     ],
     "deny": []
   }
