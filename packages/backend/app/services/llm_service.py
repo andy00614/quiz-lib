@@ -2,6 +2,8 @@ from typing import Dict, Any, Optional, AsyncGenerator
 import openai
 import anthropic
 import google.generativeai as genai
+import json
+import time
 from core.config import settings
 import structlog
 
@@ -32,23 +34,42 @@ class LLMService:
         stream: bool = False
     ) -> Dict[str, Any]:
         """生成内容"""
+        start_time = time.time()
         
-        provider = self._get_provider(model)
-        
-        if provider == "openai":
-            return await self._generate_openai(
-                prompt, model, temperature, max_tokens, top_p, stream
-            )
-        elif provider == "anthropic":
-            return await self._generate_anthropic(
-                prompt, model, temperature, max_tokens, top_p, stream
-            )
-        elif provider == "google":
-            return await self._generate_google(
-                prompt, model, temperature, max_tokens, top_p, stream
-            )
-        else:
-            raise ValueError(f"不支持的模型: {model}")
+        try:
+            provider = self._get_provider(model)
+            
+            if provider == "openai":
+                result = await self._generate_openai(
+                    prompt, model, temperature, max_tokens, top_p, stream
+                )
+            elif provider == "anthropic":
+                result = await self._generate_anthropic(
+                    prompt, model, temperature, max_tokens, top_p, stream
+                )
+            elif provider == "google":
+                result = await self._generate_google(
+                    prompt, model, temperature, max_tokens, top_p, stream
+                )
+            else:
+                raise ValueError(f"不支持的模型: {model}")
+            
+            # 添加响应时间
+            result["response_time_ms"] = int((time.time() - start_time) * 1000)
+            result["success"] = True
+            
+            return result
+            
+        except Exception as e:
+            response_time = int((time.time() - start_time) * 1000)
+            logger.error(f"Generation error: {e}")
+            
+            return {
+                "success": False,
+                "error": str(e),
+                "response_time_ms": response_time,
+                "model": model
+            }
     
     def _get_provider(self, model: str) -> str:
         """获取模型提供商"""
@@ -170,3 +191,39 @@ class LLMService:
         except Exception as e:
             logger.error(f"Google generation error: {e}")
             raise
+    
+    def parse_json_response(self, content: str) -> Optional[Dict[str, Any]]:
+        """解析JSON响应"""
+        try:
+            # 尝试直接解析
+            return json.loads(content)
+        except json.JSONDecodeError:
+            # 尝试提取JSON内容
+            start_idx = content.find('{')
+            end_idx = content.rfind('}')
+            
+            if start_idx != -1 and end_idx != -1:
+                json_content = content[start_idx:end_idx + 1]
+                try:
+                    return json.loads(json_content)
+                except json.JSONDecodeError:
+                    pass
+            
+            logger.error(f"Failed to parse JSON response: {content}")
+            return None
+    
+    def calculate_cost(
+        self,
+        input_tokens: int,
+        output_tokens: int,
+        input_price_per_1k: float,
+        output_price_per_1k: float
+    ) -> float:
+        """计算API调用成本"""
+        input_cost = (input_tokens / 1000) * input_price_per_1k
+        output_cost = (output_tokens / 1000) * output_price_per_1k
+        return round(input_cost + output_cost, 6)
+
+
+# 全局LLM服务实例
+llm_service = LLMService()

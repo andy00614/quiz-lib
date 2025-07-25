@@ -3,11 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import structlog
 
-from app.api import prompts, results, quiz, monitoring
+from app.api import models, knowledge, generation, prompts, analytics
 from app.middleware.logging import LoggingMiddleware
 from app.middleware.error_handler import error_handler_middleware
-from core.config import settings
-from core.database import create_db_and_tables, close_db_connection
+from core.config.settings import settings
+from core.database.connection import create_db_and_tables, close_db_connection
 
 logger = structlog.get_logger()
 
@@ -45,10 +45,11 @@ app.add_middleware(LoggingMiddleware)
 app.middleware("http")(error_handler_middleware)
 
 # 注册路由
-app.include_router(prompts.router, prefix="/api/v1/prompts", tags=["prompts"])
-app.include_router(results.router, prefix="/api/v1/results", tags=["results"])
-app.include_router(quiz.router, prefix="/api/v1/quiz", tags=["quiz"])
-app.include_router(monitoring.router, prefix="/api/v1/monitoring", tags=["monitoring"])
+app.include_router(models.router, prefix="/api/v1")
+app.include_router(knowledge.router, prefix="/api/v1")
+app.include_router(generation.router, prefix="/api/v1")
+app.include_router(prompts.router, prefix="/api/v1")
+app.include_router(analytics.router, prefix="/api/v1")
 
 
 @app.get("/")

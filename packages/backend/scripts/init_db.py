@@ -9,96 +9,155 @@ from pathlib import Path
 # 添加项目根目录到Python路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.database import engine, Base
-from app.models import *  # 导入所有模型
+from core.database.connection import create_db_and_tables, async_session
+from core.database.models import Model, PromptTemplate
+import structlog
+
+logger = structlog.get_logger()
+
+
+async def init_default_data():
+    """初始化默认数据"""
+    async with async_session() as session:
+        # 检查是否已有模型数据
+        from sqlalchemy import select
+        result = await session.execute(select(Model))
+        existing_models = result.scalars().all()
+        
+        if not existing_models:
+            # 创建默认模型
+            default_models = [
+                Model(
+                    name="GPT-4o",
+                    provider="openai",
+                    version="2024-05-13",
+                    input_price_per_1k=0.005,
+                    output_price_per_1k=0.015,
+                    max_tokens=4096,
+                    is_active=True
+                ),
+                Model(
+                    name="GPT-3.5-turbo",
+                    provider="openai", 
+                    version="0125",
+                    input_price_per_1k=0.0005,
+                    output_price_per_1k=0.0015,
+                    max_tokens=4096,
+                    is_active=True
+                ),
+                Model(
+                    name="Claude 3 Opus",
+                    provider="anthropic",
+                    version="20240229",
+                    input_price_per_1k=0.015,
+                    output_price_per_1k=0.075,
+                    max_tokens=4096,
+                    is_active=True
+                ),
+                Model(
+                    name="Claude 3 Sonnet",
+                    provider="anthropic",
+                    version="20240229", 
+                    input_price_per_1k=0.003,
+                    output_price_per_1k=0.015,
+                    max_tokens=4096,
+                    is_active=True
+                ),
+            ]
+            
+            for model in default_models:
+                session.add(model)
+            
+            logger.info(f"Added {len(default_models)} default models")
+        
+        # 检查是否已有prompt模板数据
+        result = await session.execute(select(PromptTemplate))
+        existing_templates = result.scalars().all()
+        
+        if not existing_templates:
+            # 创建默认prompt模板
+            default_templates = [
+                PromptTemplate(
+                    type="outline",
+                    name="默认大纲生成模板",
+                    content="""请根据以下主题生成一个详细的学习大纲：
+主题：{{topic}}
+
+要求：
+1. 大纲应该包含 4-6 个主要章节
+2. 每个章节应该有清晰的学习目标
+3. 内容应该由浅入深，循序渐进
+4. 适合初学者学习
+
+请以 JSON 格式返回大纲，格式如下：
+{
+  "chapters": [
+    {
+      "chapter_number": 1,
+      "title": "章节标题",
+      "content": "章节内容描述"
+    }
+  ]
+}""",
+                    is_default=True,
+                    variables=["topic"]
+                ),
+                PromptTemplate(
+                    type="quiz",
+                    name="默认题目生成模板", 
+                    content="""请根据以下章节内容生成 {{question_count}} 道选择题：
+章节标题：{{chapter_title}}
+章节内容：{{chapter_content}}
+
+要求：
+1. 每道题目应该有 4 个选项（A、B、C、D）
+2. 只有一个正确答案
+3. 题目难度应该适中
+4. 包含答案解析
+5. 覆盖章节的关键知识点
+
+请以 JSON 格式返回题目，格式如下：
+{
+  "quizzes": [
+    {
+      "question_number": 1,
+      "question": "题目内容",
+      "options": {
+        "A": "选项A",
+        "B": "选项B", 
+        "C": "选项C",
+        "D": "选项D"
+      },
+      "correct_answer": "A",
+      "explanation": "答案解析"
+    }
+  ]
+}""",
+                    is_default=True,
+                    variables=["chapter_title", "chapter_content", "question_count"]
+                ),
+            ]
+            
+            for template in default_templates:
+                session.add(template)
+                
+            logger.info(f"Added {len(default_templates)} default prompt templates")
+        
+        await session.commit()
+        logger.info("Default data initialization completed")
 
 
 async def init_database():
     """初始化数据库"""
-    print("开始初始化数据库...")
-    
-    async with engine.begin() as conn:
-        # 删除所有表（仅在开发环境使用）
-        # await conn.run_sync(Base.metadata.drop_all)
-        
-        # 创建所有表
-        await conn.run_sync(Base.metadata.create_all)
-    
-    print("数据库初始化完成！")
-
-
-async def create_sample_data():
-    """创建示例数据"""
-    from sqlalchemy.ext.asyncio import AsyncSession
-    from core.database import async_session
-    from app.models import PromptTemplate
-    
-    async with async_session() as session:
-        # 创建示例模板
-        templates = [
-            PromptTemplate(
-                name="Python基础知识大纲生成器",
-                description="用于生成Python基础知识的学习大纲",
-                category="编程语言",
-                template_content="""请为主题"{topic}"生成一个详细的学习大纲。
-
-要求：
-1. 包含至少5个主要章节
-2. 每个章节包含3-5个小节
-3. 内容要由浅入深，循序渐进
-4. 适合初学者学习
-
-请以结构化的格式输出。""",
-                variables={"topic": "主题名称"},
-                default_model="gpt-4o",
-                default_temperature=0.7
-            ),
-            PromptTemplate(
-                name="操作系统概念题目生成器",
-                description="根据操作系统知识点生成题目",
-                category="计算机科学",
-                template_content="""基于以下知识点生成10道题目：
-知识点：{topic}
-
-要求：
-1. 包含5道单选题
-2. 包含3道多选题
-3. 包含2道判断题
-4. 难度适中，覆盖核心概念
-5. 每道题都要提供答案和解析
-
-输出格式：
-题目类型：[单选/多选/判断]
-题目：xxx
-选项：（如果适用）
-答案：xxx
-解析：xxx""",
-                variables={"topic": "知识点"},
-                default_model="gpt-4o",
-                default_temperature=0.8
-            )
-        ]
-        
-        for template in templates:
-            session.add(template)
-        
-        await session.commit()
-        print(f"创建了 {len(templates)} 个示例模板")
-
-
-async def main():
-    """主函数"""
-    # 初始化数据库
-    await init_database()
-    
-    # 询问是否创建示例数据
-    create_sample = input("是否创建示例数据？(y/n): ").lower() == 'y'
-    if create_sample:
-        await create_sample_data()
-    
-    # 关闭数据库连接
-    await engine.dispose()
+    try:
+        logger.info("Starting database initialization...")
+        await create_db_and_tables()
+        await init_default_data()
+        logger.info("Database initialization completed successfully")
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
+        raise
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(init_database())

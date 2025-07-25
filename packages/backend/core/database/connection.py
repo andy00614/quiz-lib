@@ -40,8 +40,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 async def create_db_and_tables():
     """创建数据库表"""
     try:
-        from .base import Base
-        from app.models import *  # 导入所有模型以确保注册
+        from .models import Base  # 导入我们的新模型
         
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)

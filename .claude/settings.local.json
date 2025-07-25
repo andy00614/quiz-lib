@@ -15,7 +15,8 @@
       "Bash(rmdir:*)",
       "Bash(true)",
       "Bash(pkill:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(touch:*)"
     ],
     "deny": []
   }
