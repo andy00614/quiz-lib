@@ -16,7 +16,10 @@
       "Bash(true)",
       "Bash(pkill:*)",
       "Bash(git add:*)",
-      "Bash(touch:*)"
+      "Bash(touch:*)",
+      "Bash(source:*)",
+      "Bash(pip install:*)",
+      "Bash(python:*)"
     ],
     "deny": []
   }

@@ -82,6 +82,9 @@ class KnowledgeRecordBase(BaseModel):
     top_p: Optional[Decimal] = Field(1.0, ge=0, le=1)
     outline_prompt_id: Optional[int] = None
     quiz_prompt_id: Optional[int] = None
+    
+    class Config:
+        protected_namespaces = ()
 
 
 class KnowledgeRecordCreate(KnowledgeRecordBase):
@@ -127,6 +130,9 @@ class OutlineCreate(OutlineBase):
     """创建大纲schema"""
     knowledge_id: int
     model_id: int
+    
+    class Config:
+        protected_namespaces = ()
 
 
 class OutlineResponse(OutlineBase):
@@ -138,6 +144,7 @@ class OutlineResponse(OutlineBase):
     
     class Config:
         from_attributes = True
+        protected_namespaces = ()
 
 
 class ChapterBase(BaseModel):
@@ -176,6 +183,9 @@ class QuizCreate(QuizBase):
     """创建题目schema"""
     chapter_id: int
     model_id: int
+    
+    class Config:
+        protected_namespaces = ()
 
 
 class QuizResponse(QuizBase):
@@ -187,6 +197,7 @@ class QuizResponse(QuizBase):
     
     class Config:
         from_attributes = True
+        protected_namespaces = ()
 
 
 class APIRequestLogBase(BaseModel):
@@ -207,6 +218,9 @@ class APIRequestLogCreate(APIRequestLogBase):
     """创建API请求日志schema"""
     knowledge_id: Optional[int] = None
     model_id: int
+    
+    class Config:
+        protected_namespaces = ()
 
 
 class APIRequestLogResponse(APIRequestLogBase):
@@ -222,6 +236,7 @@ class APIRequestLogResponse(APIRequestLogBase):
     
     class Config:
         from_attributes = True
+        protected_namespaces = ()
 
 
 class ModelPerformanceStatsResponse(BaseModel):
@@ -244,6 +259,7 @@ class ModelPerformanceStatsResponse(BaseModel):
     
     class Config:
         from_attributes = True
+        protected_namespaces = ()
 
 
 # 生成请求的schema
@@ -255,6 +271,9 @@ class GenerateOutlineRequest(BaseModel):
     max_tokens: Optional[int] = Field(2000, gt=0)
     top_p: Optional[Decimal] = Field(1.0, ge=0, le=1)
     outline_prompt: Optional[str] = None
+    
+    class Config:
+        protected_namespaces = ()
 
 
 class GenerateQuizRequest(BaseModel):
@@ -266,6 +285,9 @@ class GenerateQuizRequest(BaseModel):
     max_tokens: Optional[int] = Field(2000, gt=0)
     top_p: Optional[Decimal] = Field(1.0, ge=0, le=1)
     quiz_prompt: Optional[str] = None
+    
+    class Config:
+        protected_namespaces = ()
 
 
 # 统计相关的schema
@@ -290,3 +312,6 @@ class ModelStats(BaseModel):
     error_rate: float
     avg_cost: Decimal
     total_requests: int
+    
+    class Config:
+        protected_namespaces = ()
