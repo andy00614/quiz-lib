@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, text
+from sqlalchemy import select, func, and_, text, case
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 
@@ -93,7 +93,7 @@ async def get_dashboard_stats(
     )
 
 
-@router.get("/models/stats", response_model=List[ModelStats])
+@router.get("/models/stats")
 async def get_model_stats(
     days: int = Query(30, ge=1, le=365),
     task_type: Optional[str] = Query(None),
@@ -108,17 +108,23 @@ async def get_model_stats(
         Model.name.label("model_name"),
         APIRequestLog.request_type.label("task_type"),
         func.avg(APIRequestLog.response_time_ms).label("avg_response_time_ms"),
-        func.percentile_cont(0.95).within_group(APIRequestLog.response_time_ms).label("p95_response_time_ms"),
+        func.max(APIRequestLog.response_time_ms).label("p95_response_time_ms"),  # 简化为max，避免percentile_cont兼容性问题
         func.avg(APIRequestLog.cost).label("avg_cost"),
         func.count(APIRequestLog.id).label("total_requests"),
         func.sum(
-            func.case((APIRequestLog.status == "success", 1), else_=0)
+            case(
+                (APIRequestLog.status == "success", 1),
+                else_=0
+            )
         ).label("success_count"),
         func.sum(
-            func.case((APIRequestLog.status != "success", 1), else_=0)
+            case(
+                (APIRequestLog.status != "success", 1),
+                else_=0
+            )
         ).label("error_count")
-    ).select_from(
-        APIRequestLog.join(Model)
+    ).join(
+        Model, APIRequestLog.model_id == Model.id
     ).where(
         APIRequestLog.created_at >= cutoff_date
     ).group_by(
@@ -131,22 +137,23 @@ async def get_model_stats(
     result = await session.execute(query)
     stats_data = result.fetchall()
     
+    # 手动转换为字典，避免Pydantic序列化问题
     model_stats = []
     for row in stats_data:
         success_rate = row.success_count / row.total_requests if row.total_requests > 0 else 0
         error_rate = row.error_count / row.total_requests if row.total_requests > 0 else 0
         
-        model_stats.append(ModelStats(
-            model_id=row.model_id,
-            model_name=row.model_name,
-            task_type=row.task_type,
-            avg_response_time_ms=float(row.avg_response_time_ms or 0),
-            p95_response_time_ms=float(row.p95_response_time_ms or 0),
-            success_rate=float(success_rate),
-            error_rate=float(error_rate),
-            avg_cost=float(row.avg_cost or 0),
-            total_requests=row.total_requests
-        ))
+        model_stats.append({
+            "model_id": row.model_id,
+            "model_name": row.model_name,
+            "task_type": row.task_type,
+            "avg_response_time_ms": float(row.avg_response_time_ms or 0),
+            "p95_response_time_ms": float(row.p95_response_time_ms or 0),
+            "success_rate": float(success_rate),
+            "error_rate": float(error_rate),
+            "avg_cost": float(row.avg_cost or 0),
+            "total_requests": row.total_requests
+        })
     
     return model_stats
 
@@ -202,7 +209,7 @@ async def get_time_series_data(
     ]
 
 
-@router.get("/logs", response_model=List[APIRequestLogResponse])
+@router.get("/logs")
 async def get_request_logs(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
@@ -234,7 +241,27 @@ async def get_request_logs(
     result = await session.execute(query)
     logs = result.scalars().all()
     
-    return logs
+    # 手动转换为字典，避免Pydantic序列化关联对象的问题
+    log_data = []
+    for log in logs:
+        log_dict = {
+            "id": log.id,
+            "created_at": log.created_at.isoformat(),
+            "knowledge_id": log.knowledge_id,
+            "model_id": log.model_id,
+            "request_type": log.request_type,
+            "status": log.status,
+            "response_time_ms": log.response_time_ms,
+            "input_tokens": log.input_tokens,
+            "output_tokens": log.output_tokens,
+            "cost": float(log.cost) if log.cost else 0.0,
+            "prompt": log.prompt,
+            "response": log.response,
+            "error_message": log.error_message
+        }
+        log_data.append(log_dict)
+    
+    return log_data
 
 
 @router.get("/models/{model_id}/performance", response_model=List[ModelPerformanceStatsResponse])

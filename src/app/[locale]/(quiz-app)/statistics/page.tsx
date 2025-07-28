@@ -6,17 +6,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Clock, DollarSign, AlertCircle, Zap } from 'lucide-react';
+import { apiClient } from '@/lib/api/client';
+import { toast } from 'sonner';
 
 interface ModelStats {
-  modelId: number;
-  modelName: string;
-  taskType: 'outline' | 'quiz';
-  avgResponseTime: number;
-  p95ResponseTime: number;
-  errorRate: number;
-  avgCost: number;
-  totalRequests: number;
-  successRate: number;
+  model_id: number;
+  model_name: string;
+  task_type: string;
+  avg_response_time_ms: number;
+  p95_response_time_ms: number;
+  success_rate: number;
+  error_rate: number;
+  avg_cost: number;
+  total_requests: number;
 }
 
 interface TimeSeriesData {
@@ -35,84 +37,78 @@ export default function StatisticsPage() {
   const [models, setModels] = useState<{ id: number; name: string }[]>([]);
 
   useEffect(() => {
-    // TODO: 从后端获取统计数据
-    const mockModels = [
-      { id: 1, name: 'GPT-4o' },
-      { id: 2, name: 'GPT-3.5-turbo' },
-      { id: 3, name: 'Claude 3 Opus' },
-    ];
-    setModels(mockModels);
+    // 从后端获取统计数据
+    const fetchData = async () => {
+      try {
+        // 获取模型列表
+        const modelsResponse = await apiClient.getModels();
+        if (modelsResponse.success && modelsResponse.data) {
+          setModels(modelsResponse.data);
+        }
 
-    const mockStats: ModelStats[] = [
-      {
-        modelId: 1,
-        modelName: 'GPT-4o',
-        taskType: 'outline',
-        avgResponseTime: 2341,
-        p95ResponseTime: 4523,
-        errorRate: 0.02,
-        avgCost: 0.0234,
-        totalRequests: 1234,
-        successRate: 0.98,
-      },
-      {
-        modelId: 1,
-        modelName: 'GPT-4o',
-        taskType: 'quiz',
-        avgResponseTime: 3456,
-        p95ResponseTime: 5678,
-        errorRate: 0.03,
-        avgCost: 0.0456,
-        totalRequests: 2345,
-        successRate: 0.97,
-      },
-      {
-        modelId: 2,
-        modelName: 'GPT-3.5-turbo',
-        taskType: 'outline',
-        avgResponseTime: 1234,
-        p95ResponseTime: 2345,
-        errorRate: 0.01,
-        avgCost: 0.0023,
-        totalRequests: 3456,
-        successRate: 0.99,
-      },
-      {
-        modelId: 2,
-        modelName: 'GPT-3.5-turbo',
-        taskType: 'quiz',
-        avgResponseTime: 1567,
-        p95ResponseTime: 2890,
-        errorRate: 0.015,
-        avgCost: 0.0034,
-        totalRequests: 4567,
-        successRate: 0.985,
-      },
-    ];
-    setModelStats(mockStats);
+        // 获取模型统计数据
+        const statsResponse = await apiClient.getModelStats();
+        if (statsResponse.success && statsResponse.data) {
+          setModelStats(statsResponse.data);
+        }
 
-    const mockTimeSeries: TimeSeriesData[] = [
-      { date: '2024-01-10', responseTime: 2100, errorCount: 2, successCount: 98, cost: 2.34 },
-      { date: '2024-01-11', responseTime: 2300, errorCount: 3, successCount: 120, cost: 2.89 },
-      { date: '2024-01-12', responseTime: 2050, errorCount: 1, successCount: 110, cost: 2.56 },
-      { date: '2024-01-13', responseTime: 2400, errorCount: 4, successCount: 135, cost: 3.12 },
-      { date: '2024-01-14', responseTime: 2200, errorCount: 2, successCount: 125, cost: 2.98 },
-      { date: '2024-01-15', responseTime: 2150, errorCount: 1, successCount: 118, cost: 2.75 },
-    ];
-    setTimeSeriesData(mockTimeSeries);
+        // 创建时间序列数据 (基于最近的API请求日志)
+        const logsResponse = await apiClient.getRequestLogs({ limit: 100 });
+        if (logsResponse.success && logsResponse.data) {
+          // 按日期聚合数据
+          const dateGroups = logsResponse.data.reduce((groups: any, log: any) => {
+            const date = new Date(log.created_at).toISOString().split('T')[0];
+            if (!groups[date]) {
+              groups[date] = {
+                date,
+                responseTime: 0,
+                errorCount: 0,
+                successCount: 0,
+                cost: 0,
+                count: 0
+              };
+            }
+            groups[date].responseTime += log.response_time_ms || 0;
+            if (log.status === 'success') {
+              groups[date].successCount++;
+            } else {
+              groups[date].errorCount++;
+            }
+            groups[date].cost += parseFloat(log.cost || 0);
+            groups[date].count++;
+            return groups;
+          }, {});
+
+          const timeSeriesData = Object.values(dateGroups).map((group: any) => ({
+            date: group.date,
+            responseTime: Math.round(group.responseTime / group.count),
+            errorCount: group.errorCount,
+            successCount: group.successCount,
+            cost: parseFloat(group.cost.toFixed(2))
+          })).sort((a: any, b: any) => a.date.localeCompare(b.date));
+
+          setTimeSeriesData(timeSeriesData);
+        }
+      } catch (error) {
+        console.error('获取统计数据失败:', error);
+        toast.error('获取统计数据失败');
+      }
+    };
+
+    fetchData();
   }, []);
 
   const filteredStats = modelStats.filter(stat => {
-    const modelMatch = selectedModel === 'all' || stat.modelId.toString() === selectedModel;
-    const typeMatch = selectedTaskType === 'all' || stat.taskType === selectedTaskType;
+    const modelMatch = selectedModel === 'all' || stat.model_id.toString() === selectedModel;
+    const typeMatch = selectedTaskType === 'all' || stat.task_type === selectedTaskType;
     return modelMatch && typeMatch;
   });
 
   const aggregatedStats = {
-    avgResponseTime: filteredStats.reduce((sum, s) => sum + s.avgResponseTime, 0) / filteredStats.length || 0,
-    avgErrorRate: filteredStats.reduce((sum, s) => sum + s.errorRate, 0) / filteredStats.length || 0,
-    avgCost: filteredStats.reduce((sum, s) => sum + s.avgCost, 0) / filteredStats.length || 0,
-    totalRequests: filteredStats.reduce((sum, s) => sum + s.totalRequests, 0),
+    avgResponseTime: filteredStats.reduce((sum, s) => sum + s.avg_response_time_ms, 0) / filteredStats.length || 0,
+    avgErrorRate: filteredStats.reduce((sum, s) => sum + s.error_rate, 0) / filteredStats.length || 0,
+    avgCost: filteredStats.reduce((sum, s) => sum + s.avg_cost, 0) / filteredStats.length || 0,
+    totalRequests: filteredStats.reduce((sum, s) => sum + s.total_requests, 0),
   };
 
   return (
@@ -246,12 +242,12 @@ export default function StatisticsPage() {
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={filteredStats}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="modelName" />
+                <XAxis dataKey="model_name" />
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="avgResponseTime" fill="#8884d8" name="平均响应时间(ms)" />
-                <Bar dataKey="p95ResponseTime" fill="#82ca9d" name="P95响应时间(ms)" />
+                <Bar dataKey="avg_response_time_ms" fill="#8884d8" name="平均响应时间(ms)" />
+                <Bar dataKey="p95_response_time_ms" fill="#82ca9d" name="P95响应时间(ms)" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -283,11 +279,11 @@ export default function StatisticsPage() {
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={filteredStats}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="modelName" />
+                <XAxis dataKey="model_name" />
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="successRate" fill="#00C49F" name="成功率" />
+                <Bar dataKey="success_rate" fill="#00C49F" name="成功率" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>

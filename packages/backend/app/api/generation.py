@@ -182,6 +182,8 @@ async def generate_outline(
             cost=cost
         )
         session.add(outline)
+        await session.commit()
+        await session.refresh(outline)
         
         # 创建章节记录
         chapters = parsed_content.get("chapters", [])
@@ -198,7 +200,6 @@ async def generate_outline(
         # 更新知识记录状态
         knowledge.status = "completed"
         await session.commit()
-        await session.refresh(outline)
         
         # 记录成功的API请求
         background_tasks.add_task(

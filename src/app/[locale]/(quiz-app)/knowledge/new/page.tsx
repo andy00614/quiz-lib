@@ -9,13 +9,15 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { apiClient } from '@/lib/api/client';
+import { toast } from 'sonner';
 
 interface Model {
   id: number;
   name: string;
   provider: string;
-  inputPricePer1k: number;
-  outputPricePer1k: number;
+  input_price_per_1k: number;
+  output_price_per_1k: number;
 }
 
 export default function NewKnowledgePage() {
@@ -31,14 +33,23 @@ export default function NewKnowledgePage() {
   const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
-    // TODO: 从后端获取模型列表
-    const mockModels: Model[] = [
-      { id: 1, name: 'GPT-4o', provider: 'OpenAI', inputPricePer1k: 0.005, outputPricePer1k: 0.015 },
-      { id: 2, name: 'GPT-3.5-turbo', provider: 'OpenAI', inputPricePer1k: 0.0005, outputPricePer1k: 0.0015 },
-      { id: 3, name: 'Claude 3 Opus', provider: 'Anthropic', inputPricePer1k: 0.015, outputPricePer1k: 0.075 },
-    ];
-    setModels(mockModels);
-    setSelectedModel('1');
+    // 从后端获取模型列表
+    const fetchModels = async () => {
+      try {
+        const response = await apiClient.getModels();
+        if (response.success && response.data) {
+          setModels(response.data);
+          if (response.data.length > 0) {
+            setSelectedModel(response.data[0].id.toString());
+          }
+        }
+      } catch (error) {
+        console.error('获取模型列表失败:', error);
+        toast.error('获取模型列表失败');
+      }
+    };
+
+    fetchModels();
   }, []);
 
   const handleGenerate = async () => {
@@ -46,26 +57,26 @@ export default function NewKnowledgePage() {
     
     setIsGenerating(true);
     try {
-      // TODO: 调用后端API生成知识内容
-      // const response = await fetch('/api/knowledge/generate', {
-      //   method: 'POST',
-      //   body: JSON.stringify({
-      //     question,
-      //     modelId: selectedModel,
-      //     temperature: temperature[0],
-      //     maxTokens: maxTokens[0],
-      //     topP: topP[0],
-      //     outlinePrompt,
-      //     quizPrompt,
-      //   }),
-      // });
-      
-      // 模拟生成完成后跳转
-      setTimeout(() => {
-        router.push('/knowledge/1'); // TODO: 使用实际的知识ID
-      }, 2000);
+      // 直接生成大纲（会自动创建知识记录）
+      const outlineResponse = await apiClient.generateOutline({
+        title: question,
+        model_id: parseInt(selectedModel),
+        temperature: temperature[0],
+        max_tokens: maxTokens[0],
+        top_p: topP[0],
+        outline_prompt: outlinePrompt || undefined,
+      });
+
+      if (!outlineResponse.success || !outlineResponse.data) {
+        throw new Error(outlineResponse.error || '生成大纲失败');
+      }
+
+      const knowledgeId = outlineResponse.data.knowledge_id;
+      toast.success('知识内容生成成功！');
+      router.push(`/knowledge/${knowledgeId}`);
     } catch (error) {
       console.error('生成失败:', error);
+      toast.error(error instanceof Error ? error.message : '生成失败，请稍后重试');
     } finally {
       setIsGenerating(false);
     }
@@ -102,7 +113,7 @@ export default function NewKnowledgePage() {
                       <div className="flex justify-between items-center w-full">
                         <span>{model.name}</span>
                         <span className="text-xs text-muted-foreground ml-2">
-                          (输入: ${model.inputPricePer1k}/1k, 输出: ${model.outputPricePer1k}/1k)
+                          (输入: ${model.input_price_per_1k}/1k, 输出: ${model.output_price_per_1k}/1k)
                         </span>
                       </div>
                     </SelectItem>

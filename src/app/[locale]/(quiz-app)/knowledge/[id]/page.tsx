@@ -6,36 +6,38 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Download, RefreshCw } from 'lucide-react';
+import { apiClient } from '@/lib/api/client';
+import { toast } from 'sonner';
 
 interface Chapter {
   id: number;
-  chapterNumber: number;
+  chapter_number: number;
   title: string;
   content: string;
-  quizGenerationStatus: 'pending' | 'generating' | 'completed' | 'failed';
+  quiz_generation_status: 'pending' | 'generating' | 'completed' | 'failed';
 }
 
 interface Quiz {
   id: number;
-  questionNumber: number;
+  question_number: number;
   question: string;
   options: { A: string; B: string; C: string; D: string };
-  correctAnswer: string;
+  correct_answer: string;
   explanation: string;
-  model: string;
-  responseTimeMs: number;
+  response_time_ms: number;
   cost: number;
 }
 
 interface Knowledge {
   id: number;
   title: string;
-  model: string;
-  outlinePrompt: string;
-  outline: {
-    chapters: Chapter[];
+  model: {
+    id: number;
+    name: string;
   };
+  prompt_used?: string;
+  outlines?: any[];
 }
 
 export default function KnowledgeDetailPage({ params }: { params: { id: string } }) {
@@ -44,58 +46,131 @@ export default function KnowledgeDetailPage({ params }: { params: { id: string }
   const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
   const [chapterQuizzes, setChapterQuizzes] = useState<Quiz[]>([]);
   const [isLoadingQuizzes, setIsLoadingQuizzes] = useState(false);
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [generatingChapterId, setGeneratingChapterId] = useState<number | null>(null);
 
   useEffect(() => {
-    // TODO: 从后端获取知识详情
-    const mockKnowledge: Knowledge = {
-      id: parseInt(params.id),
-      title: '操作系统核心概念',
-      model: 'GPT-4o',
-      outlinePrompt: '请生成关于操作系统的详细大纲...',
-      outline: {
-        chapters: [
-          { id: 1, chapterNumber: 1, title: '操作系统概述', content: '...', quizGenerationStatus: 'completed' },
-          { id: 2, chapterNumber: 2, title: '进程管理', content: '...', quizGenerationStatus: 'completed' },
-          { id: 3, chapterNumber: 3, title: '内存管理', content: '...', quizGenerationStatus: 'generating' },
-          { id: 4, chapterNumber: 4, title: '文件系统', content: '...', quizGenerationStatus: 'pending' },
-        ]
+    // 从后端获取知识详情
+    const fetchKnowledge = async () => {
+      try {
+        const response = await apiClient.getKnowledgeRecord(parseInt(params.id));
+        if (response.success && response.data) {
+          setKnowledge(response.data);
+          
+          // 获取章节（直接从 knowledge API 获取）
+          const chaptersResponse = await apiClient.getChapters(parseInt(params.id));
+          if (chaptersResponse.success && chaptersResponse.data) {
+            setChapters(chaptersResponse.data);
+          }
+        }
+      } catch (error) {
+        console.error('获取知识详情失败:', error);
+        toast.error('获取知识详情失败');
       }
     };
-    setKnowledge(mockKnowledge);
+
+    fetchKnowledge();
   }, [params.id]);
 
   const handleChapterClick = async (chapter: Chapter) => {
-    if (chapter.quizGenerationStatus !== 'completed') return;
+    if (chapter.quiz_generation_status === 'pending') {
+      // 如果题目还没生成，先生成题目
+      await generateQuizForChapter(chapter);
+      return;
+    }
+
+    if (chapter.quiz_generation_status !== 'completed') return;
 
     setSelectedChapter(chapter);
     setIsLoadingQuizzes(true);
 
     try {
-      // TODO: 从后端获取章节题目
-      const mockQuizzes: Quiz[] = Array.from({ length: 10 }, (_, i) => ({
-        id: i + 1,
-        questionNumber: i + 1,
-        question: `关于${chapter.title}的问题 ${i + 1}`,
-        options: {
-          A: '选项 A',
-          B: '选项 B',
-          C: '选项 C',
-          D: '选项 D',
-        },
-        correctAnswer: 'A',
-        explanation: '这是答案解析',
-        model: 'GPT-4o',
-        responseTimeMs: 1234,
-        cost: 0.0012,
-      }));
-      
-      setTimeout(() => {
-        setChapterQuizzes(mockQuizzes);
-        setIsLoadingQuizzes(false);
-      }, 1000);
+      const response = await apiClient.getQuizzes(parseInt(params.id), chapter.id);
+      if (response.success && response.data) {
+        setChapterQuizzes(response.data);
+      } else {
+        toast.error('获取题目失败');
+      }
     } catch (error) {
       console.error('加载题目失败:', error);
+      toast.error('加载题目失败');
+    } finally {
       setIsLoadingQuizzes(false);
+    }
+  };
+
+  const generateQuizForChapter = async (chapter: Chapter) => {
+    if (!knowledge) return;
+    
+    // 立即更新章节状态为生成中
+    setChapters(chapters.map(c => 
+      c.id === chapter.id 
+        ? { ...c, quiz_generation_status: 'generating' as const }
+        : c
+    ));
+    
+    setGeneratingChapterId(chapter.id);
+    try {
+      const response = await apiClient.generateQuiz({
+        chapter_id: chapter.id,
+        model_id: knowledge.model.id,
+        question_count: 10,
+        temperature: 0.7,
+        max_tokens: 2000,
+        top_p: 1.0,
+      });
+
+      if (response.success) {
+        toast.success('题目生成成功！');
+        // 更新章节状态为已完成
+        setChapters(chapters.map(c => 
+          c.id === chapter.id 
+            ? { ...c, quiz_generation_status: 'completed' as const }
+            : c
+        ));
+        // 自动打开题目列表
+        handleChapterClick({ ...chapter, quiz_generation_status: 'completed' });
+      } else {
+        toast.error('题目生成失败');
+        // 生成失败时，恢复为待生成状态
+        setChapters(chapters.map(c => 
+          c.id === chapter.id 
+            ? { ...c, quiz_generation_status: 'failed' as const }
+            : c
+        ));
+      }
+    } catch (error) {
+      console.error('生成题目失败:', error);
+      toast.error('生成题目失败');
+      // 生成失败时，恢复为待生成状态
+      setChapters(chapters.map(c => 
+        c.id === chapter.id 
+          ? { ...c, quiz_generation_status: 'failed' as const }
+          : c
+      ));
+    } finally {
+      setGeneratingChapterId(null);
+    }
+  };
+
+  const handleExport = async (format: 'csv' | 'json' | 'markdown') => {
+    if (!selectedChapter) return;
+    
+    try {
+      const response = await apiClient.exportQuizzes(selectedChapter.id, format);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${selectedChapter.title}-题目.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success('导出成功！');
+    } catch (error) {
+      console.error('导出失败:', error);
+      toast.error('导出失败');
     }
   };
 
@@ -134,14 +209,16 @@ export default function KnowledgeDetailPage({ params }: { params: { id: string }
         <CardHeader>
           <CardTitle className="text-2xl">{knowledge.title}</CardTitle>
           <div className="text-sm text-muted-foreground mt-2">
-            <span>模型: {knowledge.model}</span>
+            <span>模型: {knowledge.model.name}</span>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="mb-4">
-            <h3 className="font-semibold mb-2">生成大纲的 Prompt:</h3>
-            <p className="text-sm bg-muted p-3 rounded">{knowledge.outlinePrompt}</p>
-          </div>
+          {knowledge.prompt_used && (
+            <div className="mb-4">
+              <h3 className="font-semibold mb-2">生成大纲的 Prompt:</h3>
+              <p className="text-sm bg-muted p-3 rounded">{knowledge.prompt_used}</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -151,11 +228,13 @@ export default function KnowledgeDetailPage({ params }: { params: { id: string }
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {knowledge.outline.chapters.map((chapter) => (
+            {chapters.map((chapter) => (
               <div
                 key={chapter.id}
                 className={`p-4 border rounded-lg transition-colors ${
-                  chapter.quizGenerationStatus === 'completed'
+                  chapter.quiz_generation_status === 'completed'
+                    ? 'cursor-pointer hover:bg-muted'
+                    : chapter.quiz_generation_status === 'pending'
                     ? 'cursor-pointer hover:bg-muted'
                     : 'opacity-60'
                 }`}
@@ -164,10 +243,28 @@ export default function KnowledgeDetailPage({ params }: { params: { id: string }
                 <div className="flex justify-between items-center">
                   <div>
                     <h3 className="font-semibold">
-                      第{chapter.chapterNumber}章: {chapter.title}
+                      第{chapter.chapter_number}章: {chapter.title}
                     </h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {chapter.content}
+                    </p>
                   </div>
-                  {getStatusBadge(chapter.quizGenerationStatus)}
+                  <div className="flex items-center gap-2">
+                    {getStatusBadge(chapter.quiz_generation_status)}
+                    {(chapter.quiz_generation_status === 'pending' || chapter.quiz_generation_status === 'failed') && generatingChapterId !== chapter.id && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          generateQuizForChapter(chapter);
+                        }}
+                      >
+                        <RefreshCw className="w-3 h-3 mr-1" />
+                        {chapter.quiz_generation_status === 'failed' ? '重新生成' : '生成题目'}
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -194,34 +291,60 @@ export default function KnowledgeDetailPage({ params }: { params: { id: string }
                   <CardContent className="pt-6">
                     <div className="mb-4">
                       <h4 className="font-semibold mb-2">
-                        {quiz.questionNumber}. {quiz.question}
+                        {quiz.question_number}. {quiz.question}
                       </h4>
                       <div className="space-y-2 ml-4">
                         {Object.entries(quiz.options).map(([key, value]) => (
-                          <div key={key} className={`${key === quiz.correctAnswer ? 'font-semibold text-green-600' : ''}`}>
-                            {key}. {value}
+                          <div key={key} className="flex items-start">
+                            <span className="font-semibold mr-2">{key}.</span>
+                            <span>{value}</span>
                           </div>
                         ))}
                       </div>
+                      <div className="border-t pt-3 mt-3">
+                        <p className="text-sm">
+                          <strong>正确答案:</strong> {quiz.correct_answer}
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          <strong>解析:</strong> {quiz.explanation}
+                        </p>
+                      </div>
                     </div>
-                    
-                    <div className="border-t pt-3 mt-3">
-                      <p className="text-sm text-muted-foreground mb-2">
-                        <span className="font-semibold">答案:</span> {quiz.correctAnswer}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        <span className="font-semibold">解析:</span> {quiz.explanation}
-                      </p>
-                    </div>
-                    
-                    <div className="flex justify-between text-xs text-muted-foreground mt-3 pt-3 border-t">
-                      <span>模型: {quiz.model}</span>
-                      <span>耗时: {quiz.responseTimeMs}ms</span>
-                      <span>费用: ${quiz.cost.toFixed(4)}</span>
+                    <div className="text-xs text-muted-foreground">
+                      响应时间: {quiz.response_time_ms}ms | 成本: ${quiz.cost}
                     </div>
                   </CardContent>
                 </Card>
               ))}
+              
+              {chapterQuizzes.length > 0 && (
+                <div className="flex justify-end gap-2 mt-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleExport('csv')}
+                  >
+                    <Download className="w-3 h-3 mr-1" />
+                    导出 CSV
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleExport('json')}
+                  >
+                    <Download className="w-3 h-3 mr-1" />
+                    导出 JSON
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleExport('markdown')}
+                  >
+                    <Download className="w-3 h-3 mr-1" />
+                    导出 Markdown
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>

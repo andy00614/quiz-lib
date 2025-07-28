@@ -19,7 +19,9 @@
       "Bash(touch:*)",
       "Bash(source:*)",
       "Bash(pip install:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(curl:*)",
+      "Bash(kill:*)"
     ],
     "deny": []
   }

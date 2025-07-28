@@ -28,7 +28,7 @@ async def init_default_data():
             # 创建默认模型
             default_models = [
                 Model(
-                    name="GPT-4o",
+                    name="gpt-4o",
                     provider="openai",
                     version="2024-05-13",
                     input_price_per_1k=0.005,
@@ -37,7 +37,7 @@ async def init_default_data():
                     is_active=True
                 ),
                 Model(
-                    name="GPT-3.5-turbo",
+                    name="gpt-3.5-turbo",
                     provider="openai", 
                     version="0125",
                     input_price_per_1k=0.0005,
@@ -46,7 +46,7 @@ async def init_default_data():
                     is_active=True
                 ),
                 Model(
-                    name="Claude 3 Opus",
+                    name="claude-3-opus-20240229",
                     provider="anthropic",
                     version="20240229",
                     input_price_per_1k=0.015,
@@ -55,7 +55,7 @@ async def init_default_data():
                     is_active=True
                 ),
                 Model(
-                    name="Claude 3 Sonnet",
+                    name="claude-3-sonnet-20240229",
                     provider="anthropic",
                     version="20240229", 
                     input_price_per_1k=0.003,

@@ -89,17 +89,8 @@ class LLMService:
     ) -> Dict[str, Any]:
         """使用OpenAI生成"""
         try:
-            # 模型名称映射
-            model_mapping = {
-                "GPT-4o": "gpt-4o",
-                "GPT-3.5-turbo": "gpt-3.5-turbo",
-                "gpt-4o": "gpt-4o",
-                "gpt-3.5-turbo": "gpt-3.5-turbo"
-            }
-            api_model = model_mapping.get(model, model)
-            
             response = await self.openai_client.chat.completions.create(
-                model=api_model,
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=temperature,
                 max_tokens=max_tokens,
@@ -133,17 +124,8 @@ class LLMService:
     ) -> Dict[str, Any]:
         """使用Anthropic生成"""
         try:
-            # 模型名称映射
-            model_mapping = {
-                "Claude 3 Opus": "claude-3-opus-20240229",
-                "Claude 3 Sonnet": "claude-3-sonnet-20240229",
-                "claude-3-opus": "claude-3-opus-20240229",
-                "claude-3-sonnet": "claude-3-sonnet-20240229"
-            }
-            api_model = model_mapping.get(model, model)
-            
             message = await self.anthropic_client.messages.create(
-                model=api_model,
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=temperature,
                 max_tokens=max_tokens,

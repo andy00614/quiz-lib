@@ -8,13 +8,15 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Save } from 'lucide-react';
+import { apiClient } from '@/lib/api/client';
+import { toast } from 'sonner';
 
 interface PromptTemplate {
   id: number;
   type: 'outline' | 'quiz';
   name: string;
   content: string;
-  isDefault: boolean;
+  is_default: boolean;
   variables: string[];
 }
 
@@ -25,67 +27,51 @@ export default function PromptConfigPage() {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    // TODO: 从后端获取默认 prompt 配置
-    const mockTemplates: PromptTemplate[] = [
-      {
-        id: 1,
-        type: 'outline',
-        name: '默认大纲生成模板',
-        content: `请根据以下主题生成一个详细的学习大纲：
-主题：{{topic}}
+    // 从后端获取 prompt 模板
+    const fetchTemplates = async () => {
+      try {
+        const response = await apiClient.getPromptTemplates();
+        if (response.success && response.data) {
+          setTemplates(response.data);
+          
+          // 设置默认的 prompt
+          const defaultOutline = response.data.find(t => t.type === 'outline' && t.is_default);
+          const defaultQuiz = response.data.find(t => t.type === 'quiz' && t.is_default);
+          
+          if (defaultOutline) setOutlinePrompt(defaultOutline.content);
+          if (defaultQuiz) setQuizPrompt(defaultQuiz.content);
+        }
+      } catch (error) {
+        console.error('获取模板失败:', error);
+        toast.error('获取模板失败，请稍后重试');
+      }
+    };
 
-要求：
-1. 大纲应该包含 4-6 个主要章节
-2. 每个章节应该有清晰的学习目标
-3. 内容应该由浅入深，循序渐进
-4. 适合初学者学习
-
-请以 JSON 格式返回大纲。`,
-        isDefault: true,
-        variables: ['topic'],
-      },
-      {
-        id: 2,
-        type: 'quiz',
-        name: '默认题目生成模板',
-        content: `请根据以下章节内容生成 10 道选择题：
-章节标题：{{chapterTitle}}
-章节内容：{{chapterContent}}
-
-要求：
-1. 每道题目应该有 4 个选项（A、B、C、D）
-2. 只有一个正确答案
-3. 题目难度应该适中
-4. 包含答案解析
-5. 覆盖章节的关键知识点
-
-请以 JSON 格式返回题目。`,
-        isDefault: true,
-        variables: ['chapterTitle', 'chapterContent'],
-      },
-    ];
-
-    setTemplates(mockTemplates);
-    setOutlinePrompt(mockTemplates.find(t => t.type === 'outline' && t.isDefault)?.content || '');
-    setQuizPrompt(mockTemplates.find(t => t.type === 'quiz' && t.isDefault)?.content || '');
+    fetchTemplates();
   }, []);
 
   const handleSave = async (type: 'outline' | 'quiz') => {
     setIsSaving(true);
     try {
-      // TODO: 保存到后端
+      // 目前后端还没有更新模板的 API，暂时使用本地存储
       console.log('保存 Prompt 配置:', {
         type,
         content: type === 'outline' ? outlinePrompt : quizPrompt,
       });
       
-      // 模拟保存延迟
-      setTimeout(() => {
-        setIsSaving(false);
-        alert('保存成功！');
-      }, 1000);
+      // 更新本地状态
+      setTemplates(templates.map(t => {
+        if (t.type === type && t.is_default) {
+          return { ...t, content: type === 'outline' ? outlinePrompt : quizPrompt };
+        }
+        return t;
+      }));
+      
+      toast.success('保存成功！');
     } catch (error) {
       console.error('保存失败:', error);
+      toast.error('保存失败，请稍后重试');
+    } finally {
       setIsSaving(false);
     }
   };
@@ -203,6 +189,7 @@ export default function PromptConfigPage() {
                     <h4 className="font-semibold">{template.name}</h4>
                     <span className="text-xs text-muted-foreground">
                       类型: {template.type === 'outline' ? '大纲生成' : '题目生成'}
+                      {template.is_default && ' (默认)'}
                     </span>
                   </div>
                   <Button

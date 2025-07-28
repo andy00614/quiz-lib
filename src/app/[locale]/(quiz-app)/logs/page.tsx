@@ -10,22 +10,26 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Clock, DollarSign, Hash, AlertCircle, CheckCircle, Search, Filter } from 'lucide-react';
+import { apiClient } from '@/lib/api/client';
+import { toast } from 'sonner';
 
 interface RequestLog {
   id: number;
-  timestamp: string;
-  knowledgeId: number;
-  knowledgeTitle: string;
-  requestType: 'outline_generation' | 'quiz_generation';
-  model: string;
-  status: 'success' | 'failed' | 'timeout';
-  responseTimeMs: number;
-  inputTokens: number;
-  outputTokens: number;
-  cost: number;
+  created_at: string;
+  knowledge_id?: number;
+  model_id: number;
+  request_type: string;
+  status: string;
+  response_time_ms?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  cost?: number;
   prompt: string;
   response?: string;
-  errorMessage?: string;
+  error_message?: string;
+  // 需要通过其他API获取
+  knowledge_title?: string;
+  model_name?: string;
 }
 
 export default function LogsPage() {
@@ -39,82 +43,58 @@ export default function LogsPage() {
   const [models, setModels] = useState<string[]>([]);
 
   useEffect(() => {
-    // TODO: 从后端获取日志数据
-    const mockLogs: RequestLog[] = [
-      {
-        id: 1,
-        timestamp: '2024-01-15 10:30:45',
-        knowledgeId: 1,
-        knowledgeTitle: '操作系统核心概念',
-        requestType: 'outline_generation',
-        model: 'GPT-4o',
-        status: 'success',
-        responseTimeMs: 2341,
-        inputTokens: 234,
-        outputTokens: 1456,
-        cost: 0.0234,
-        prompt: '请生成关于操作系统的详细大纲...',
-        response: '{"chapters": [...]}',
-      },
-      {
-        id: 2,
-        timestamp: '2024-01-15 10:35:12',
-        knowledgeId: 1,
-        knowledgeTitle: '操作系统核心概念',
-        requestType: 'quiz_generation',
-        model: 'GPT-4o',
-        status: 'success',
-        responseTimeMs: 3456,
-        inputTokens: 456,
-        outputTokens: 2345,
-        cost: 0.0456,
-        prompt: '请根据以下章节内容生成10道选择题...',
-        response: '{"quizzes": [...]}',
-      },
-      {
-        id: 3,
-        timestamp: '2024-01-15 11:20:33',
-        knowledgeId: 2,
-        knowledgeTitle: 'Python 基础编程',
-        requestType: 'outline_generation',
-        model: 'Claude 3 Opus',
-        status: 'failed',
-        responseTimeMs: 5234,
-        inputTokens: 345,
-        outputTokens: 0,
-        cost: 0.0123,
-        prompt: '请生成关于Python基础的大纲...',
-        errorMessage: 'API rate limit exceeded',
-      },
-      {
-        id: 4,
-        timestamp: '2024-01-15 11:45:22',
-        knowledgeId: 3,
-        knowledgeTitle: '数据结构与算法',
-        requestType: 'quiz_generation',
-        model: 'GPT-3.5-turbo',
-        status: 'timeout',
-        responseTimeMs: 30000,
-        inputTokens: 234,
-        outputTokens: 0,
-        cost: 0.0023,
-        prompt: '请生成数据结构相关题目...',
-        errorMessage: 'Request timeout after 30s',
-      },
-    ];
-    
-    setLogs(mockLogs);
-    setFilteredLogs(mockLogs);
-    
-    const uniqueModels = Array.from(new Set(mockLogs.map(log => log.model)));
-    setModels(uniqueModels);
+    // 从后端获取日志数据
+    const fetchLogs = async () => {
+      try {
+        const [logsResponse, modelsResponse, knowledgeResponse] = await Promise.all([
+          apiClient.getRequestLogs({ limit: 100 }),
+          apiClient.getModels(),
+          apiClient.getKnowledgeRecords()
+        ]);
+
+        if (logsResponse.success && logsResponse.data) {
+          // 创建 model 和 knowledge 的查找映射
+          const modelMap = new Map();
+          if (modelsResponse.success && modelsResponse.data) {
+            modelsResponse.data.forEach(model => {
+              modelMap.set(model.id, model.name);
+            });
+          }
+
+          const knowledgeMap = new Map();
+          if (knowledgeResponse.success && knowledgeResponse.data) {
+            knowledgeResponse.data.forEach(knowledge => {
+              knowledgeMap.set(knowledge.id, knowledge.title);
+            });
+          }
+
+          // 补充日志数据中的名称信息
+          const enrichedLogs = logsResponse.data.map(log => ({
+            ...log,
+            model_name: modelMap.get(log.model_id) || 'Unknown Model',
+            knowledge_title: log.knowledge_id ? (knowledgeMap.get(log.knowledge_id) || 'Unknown Knowledge') : 'N/A'
+          }));
+
+          setLogs(enrichedLogs);
+          setFilteredLogs(enrichedLogs);
+          
+          const uniqueModels = Array.from(new Set(enrichedLogs.map(log => log.model_name)));
+          setModels(uniqueModels);
+        }
+      } catch (error) {
+        console.error('获取日志数据失败:', error);
+        toast.error('获取日志数据失败');
+      }
+    };
+
+    fetchLogs();
   }, []);
 
   useEffect(() => {
     let filtered = logs;
 
     if (filterModel !== 'all') {
-      filtered = filtered.filter(log => log.model === filterModel);
+      filtered = filtered.filter(log => log.model_name === filterModel);
     }
 
     if (filterStatus !== 'all') {
@@ -122,12 +102,12 @@ export default function LogsPage() {
     }
 
     if (filterType !== 'all') {
-      filtered = filtered.filter(log => log.requestType === filterType);
+      filtered = filtered.filter(log => log.request_type === filterType);
     }
 
     if (searchTerm) {
       filtered = filtered.filter(log => 
-        log.knowledgeTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (log.knowledge_title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         log.prompt.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
@@ -151,20 +131,13 @@ export default function LogsPage() {
             失败
           </Badge>
         );
-      case 'timeout':
-        return (
-          <Badge variant="secondary" className="flex items-center gap-1">
-            <Clock className="w-3 h-3" />
-            超时
-          </Badge>
-        );
       default:
         return null;
     }
   };
 
   const getRequestTypeName = (type: string) => {
-    return type === 'outline_generation' ? '大纲生成' : '题目生成';
+    return type === 'outline' ? '大纲生成' : '题目生成';
   };
 
   return (
@@ -220,7 +193,6 @@ export default function LogsPage() {
                   <SelectItem value="all">所有状态</SelectItem>
                   <SelectItem value="success">成功</SelectItem>
                   <SelectItem value="failed">失败</SelectItem>
-                  <SelectItem value="timeout">超时</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -233,8 +205,8 @@ export default function LogsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">所有类型</SelectItem>
-                  <SelectItem value="outline_generation">大纲生成</SelectItem>
-                  <SelectItem value="quiz_generation">题目生成</SelectItem>
+                  <SelectItem value="outline">大纲生成</SelectItem>
+                  <SelectItem value="quiz">题目生成</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -262,24 +234,24 @@ export default function LogsPage() {
               {filteredLogs.map((log) => (
                 <TableRow key={log.id}>
                   <TableCell className="font-mono text-sm">
-                    {log.timestamp}
+                    {new Date(log.created_at).toLocaleString()}
                   </TableCell>
                   <TableCell className="max-w-xs truncate">
-                    {log.knowledgeTitle}
+                    {log.knowledge_title}
                   </TableCell>
                   <TableCell>
-                    {getRequestTypeName(log.requestType)}
+                    {getRequestTypeName(log.request_type)}
                   </TableCell>
-                  <TableCell>{log.model}</TableCell>
+                  <TableCell>{log.model_name}</TableCell>
                   <TableCell>{getStatusBadge(log.status)}</TableCell>
-                  <TableCell>{log.responseTimeMs}ms</TableCell>
+                  <TableCell>{log.response_time_ms || 0}ms</TableCell>
                   <TableCell>
                     <div className="text-sm">
-                      <div>输入: {log.inputTokens}</div>
-                      <div>输出: {log.outputTokens}</div>
+                      <div>输入: {log.input_tokens || 0}</div>
+                      <div>输出: {log.output_tokens || 0}</div>
                     </div>
                   </TableCell>
-                  <TableCell>${log.cost.toFixed(4)}</TableCell>
+                  <TableCell>${parseFloat(log.cost || 0).toFixed(4)}</TableCell>
                   <TableCell>
                     <Button
                       variant="ghost"
@@ -307,19 +279,19 @@ export default function LogsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-muted-foreground">请求时间</Label>
-                  <p className="font-mono">{selectedLog.timestamp}</p>
+                  <p className="font-mono">{new Date(selectedLog.created_at).toLocaleString()}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">知识标题</Label>
-                  <p>{selectedLog.knowledgeTitle}</p>
+                  <p>{selectedLog.knowledge_title}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">任务类型</Label>
-                  <p>{getRequestTypeName(selectedLog.requestType)}</p>
+                  <p>{getRequestTypeName(selectedLog.request_type)}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">模型</Label>
-                  <p>{selectedLog.model}</p>
+                  <p>{selectedLog.model_name}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">状态</Label>
@@ -327,7 +299,7 @@ export default function LogsPage() {
                 </div>
                 <div>
                   <Label className="text-muted-foreground">响应时间</Label>
-                  <p>{selectedLog.responseTimeMs}ms</p>
+                  <p>{selectedLog.response_time_ms || 0}ms</p>
                 </div>
               </div>
 
@@ -347,11 +319,11 @@ export default function LogsPage() {
                 </div>
               )}
 
-              {selectedLog.errorMessage && (
+              {selectedLog.error_message && (
                 <div>
                   <Label className="text-muted-foreground">错误信息</Label>
                   <div className="mt-2 p-3 bg-destructive/10 text-destructive rounded-lg">
-                    {selectedLog.errorMessage}
+                    {selectedLog.error_message}
                   </div>
                 </div>
               )}
@@ -360,16 +332,16 @@ export default function LogsPage() {
                 <div className="flex gap-4 text-sm text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <Hash className="w-3 h-3" />
-                    输入: {selectedLog.inputTokens} tokens
+                    输入: {selectedLog.input_tokens || 0} tokens
                   </span>
                   <span className="flex items-center gap-1">
                     <Hash className="w-3 h-3" />
-                    输出: {selectedLog.outputTokens} tokens
+                    输出: {selectedLog.output_tokens || 0} tokens
                   </span>
                 </div>
                 <div className="flex items-center gap-1 text-sm font-medium">
                   <DollarSign className="w-4 h-4" />
-                  {selectedLog.cost.toFixed(4)}
+                  {parseFloat(selectedLog.cost || 0).toFixed(4)}
                 </div>
               </div>
             </div>

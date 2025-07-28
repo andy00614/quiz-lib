@@ -5,15 +5,19 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Calendar, Bot } from 'lucide-react';
+import { apiClient } from '@/lib/api/client';
+import { toast } from 'sonner';
 
 interface KnowledgeItem {
   id: number;
   title: string;
-  model: string;
-  createdAt: string;
-  chapterCount: number;
-  totalQuizzes: number;
-  status: 'completed' | 'generating' | 'failed';
+  model: {
+    id: number;
+    name: string;
+  };
+  created_at: string;
+  status: string;
+  outlines?: any[];
 }
 
 export default function KnowledgeListPage() {
@@ -21,37 +25,20 @@ export default function KnowledgeListPage() {
   const [knowledgeList, setKnowledgeList] = useState<KnowledgeItem[]>([]);
 
   useEffect(() => {
-    // TODO: 从后端获取知识列表
-    const mockData: KnowledgeItem[] = [
-      {
-        id: 1,
-        title: '操作系统核心概念',
-        model: 'GPT-4o',
-        createdAt: '2024-01-15 10:30:00',
-        chapterCount: 5,
-        totalQuizzes: 50,
-        status: 'completed',
-      },
-      {
-        id: 2,
-        title: 'Python 基础编程',
-        model: 'Claude 3 Opus',
-        createdAt: '2024-01-14 15:20:00',
-        chapterCount: 8,
-        totalQuizzes: 80,
-        status: 'completed',
-      },
-      {
-        id: 3,
-        title: '数据结构与算法',
-        model: 'GPT-3.5-turbo',
-        createdAt: '2024-01-13 09:15:00',
-        chapterCount: 6,
-        totalQuizzes: 0,
-        status: 'generating',
-      },
-    ];
-    setKnowledgeList(mockData);
+    // 从后端获取知识列表
+    const fetchKnowledgeList = async () => {
+      try {
+        const response = await apiClient.getKnowledgeRecords();
+        if (response.success && response.data) {
+          setKnowledgeList(response.data);
+        }
+      } catch (error) {
+        console.error('获取知识列表失败:', error);
+        toast.error('获取知识列表失败');
+      }
+    };
+
+    fetchKnowledgeList();
   }, []);
 
   const getStatusBadge = (status: string) => {
@@ -88,18 +75,14 @@ export default function KnowledgeListPage() {
               <CardTitle className="text-lg line-clamp-2">{item.title}</CardTitle>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Bot className="w-4 h-4" />
-                <span>{item.model}</span>
+                <span>{item.model.name}</span>
               </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span>章节数:</span>
-                  <span className="font-medium">{item.chapterCount}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>题目数:</span>
-                  <span className="font-medium">{item.totalQuizzes}</span>
+                  <span>大纲数:</span>
+                  <span className="font-medium">{item.outlines?.length || 0}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>状态:</span>
@@ -107,7 +90,7 @@ export default function KnowledgeListPage() {
                 </div>
                 <div className="flex items-center gap-1 text-muted-foreground pt-2 border-t">
                   <Calendar className="w-3 h-3" />
-                  <span className="text-xs">{item.createdAt}</span>
+                  <span className="text-xs">{new Date(item.created_at).toLocaleString()}</span>
                 </div>
               </div>
             </CardContent>
