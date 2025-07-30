@@ -1,8 +1,19 @@
 {
-    "git": {
-      "deploymentEnabled": {
-        "main": true,
-        "*": false
-      }
+  "git": {
+    "deploymentEnabled": {
+      "main": true,
+      "*": false
     }
+  },
+  "build": {
+    "env": {
+      "SKIP_ENV_VALIDATION": "true"
+    }
+  },
+  "functions": {
+    "src/app/api/**/*.ts": {
+      "maxDuration": 30
+    }
+  },
+  "crons": []
 }
