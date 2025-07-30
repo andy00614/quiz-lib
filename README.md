@@ -1,165 +1,160 @@
-# Better SaaS
+# Quiz-Lib - AI驱动的题库生成系统
 
-[中文版 README](README_zh.md) | English
+这是一个基于AI的智能题库生成系统，支持多种AI模型，能够根据用户输入的主题自动生成结构化的学习大纲和配套题目。
 
-A modern, full-stack SaaS application built with Next.js 15, featuring authentication, payments, file management, and internationalization with comprehensive testing suite.
+## 项目结构
 
-## 🚀 Features
+```
+quiz-lib/
+├── frontend/           # Next.js前端应用
+│   ├── src/           # 源代码
+│   ├── public/        # 静态资源
+│   ├── components/    # React组件
+│   └── package.json   # 前端依赖
+├── backend/           # FastAPI后端服务
+│   ├── app/          # 应用代码
+│   ├── tests/        # 测试文件
+│   ├── requirements.txt # Python依赖
+│   ├── run.py        # 启动脚本
+│   └── README.md     # 后端文档
+├── package.json      # Monorepo配置
+└── README.md        # 项目说明
+```
 
-- **🔐 Authentication**: Email/password and social login (GitHub, Google) with Better Auth
-- **💳 Payments**: Stripe integration with subscription management and billing dashboard
-- **📁 File Management**: Upload, preview, and manage files with AWS S3/R2 storage
-- **🌍 Internationalization**: Multi-language support (English/Chinese) with next-intl
-- **📱 Responsive Design**: Modern UI with Radix UI and Tailwind CSS v4
-- **📖 Documentation**: Built-in documentation system with Fumadocs
-- **🔒 Protected Routes**: Role-based access control and route protection
-- **👥 Admin Dashboard**: User management and system administration
-- **⚡ Performance**: Optimized with Next.js 15 App Router and Turbo mode
-- **🧪 Testing**: Comprehensive testing suite with Jest, Playwright, and integration tests
+## 功能特性
 
-## 🛠️ Tech Stack
+### 1. Prompt 配置区（Prompt Playground）
+- **主题输入**：支持中英文输入，可附带标签
+- **模型选择**：支持GPT-4o, Gemini Pro, Claude等主流模型
+- **参数控制**：温度、最大token数、top-p等参数调节
+- **模板管理**：内置多种Prompt模板，支持变量占位符
 
-### Frontend
+### 2. 结构化结果区（Result Block View）
+- **结构化显示**：以内容块形式展示生成结果
+- **元信息展示**：显示使用的模型、Token数、响应时间等
+- **AI推荐机制**：自动评分并推荐最佳回答
+- **版本对比**：支持多版本结果对比和选择
 
-- **Framework**: Next.js 15 (App Router)
-- **UI Components**: Radix UI + Tailwind CSS
-- **State Management**: Zustand
-- **Data Fetching**: SWR
-- **Styling**: Tailwind CSS v4
-- **Icons**: Lucide React
+### 3. 题目生成区（Quiz Generator）
+- **章节联动**：根据大纲章节自动生成对应题目
+- **题型多样**：支持选择题、填空题等多种题型
+- **批量生成**：默认每章节10题，支持自定义数量
+- **导出功能**：支持CSV、JSON、Markdown格式导出
 
-### Backend
+### 4. 性能监控区（Performance Dashboard）
+- **实时监控**：响应时间、Token消耗、错误率统计
+- **请求日志**：详细的API调用记录
+- **成本分析**：不同模型的费用对比和趋势分析
+- **可视化图表**：响应时间趋势、成本分布等图表
 
-- **Runtime**: Node.js
-- **Database**: PostgreSQL with Drizzle ORM
-- **Authentication**: Better Auth
-- **Payments**: Stripe
-- **File Storage**: AWS S3/Cloudflare R2
-- **Validation**: Zod
+## 技术栈
 
-### Development & Testing
+### 前端
+- **框架**：Next.js 15 (App Router)
+- **UI库**：Radix UI + Tailwind CSS
+- **状态管理**：Zustand + SWR
+- **认证**：Better Auth
+- **数据库**：PostgreSQL + Drizzle ORM
+- **部署**：Vercel
 
-- **Language**: TypeScript
-- **Package Manager**: pnpm
-- **Code Quality**: Biome (formatting, linting)
-- **Environment**: @t3-oss/env-nextjs
-- **Unit Testing**: Jest with React Testing Library
-- **Integration Testing**: Jest with database integration
-- **E2E Testing**: Playwright with multi-browser support
-- **Test Coverage**: Comprehensive coverage reporting
+### 后端
+- **框架**：FastAPI
+- **数据库**：PostgreSQL + SQLAlchemy
+- **AI集成**：OpenAI, Anthropic, Google Gemini
+- **监控**：Prometheus + Structlog
+- **测试**：Pytest + AsyncIO
 
-## 📖 Documentation
+## 快速开始
 
-Complete project documentation has been migrated to our online documentation site:
-
-**🌐 [https://www.better-saas.org/docs](https://www.better-saas.org/docs)**
-
-The online documentation includes:
-
-- 🏗️ Architecture design and system overview
-- 📦 Detailed installation and configuration guide
-- 🔧 API documentation with examples
-- 🎨 UI component library usage guide
-- 🧪 Testing strategies and best practices
-- 🚀 Deployment guide and production setup
-- 🌍 Internationalization implementation
-- 💳 Payment integration and subscription management
-
-> 💡 **Tip**: The online documentation is continuously updated. We recommend bookmarking it for the latest information.
-
-## 🚀 Quick Start
-
-### Prerequisites
-
+### 1. 环境要求
 - Node.js 18+
-- pnpm
-- PostgreSQL database
-- Stripe account (for payments)
-- AWS S3 or Cloudflare R2 (for file storage)
+- Python 3.9+
+- PostgreSQL 14+
+- pnpm (推荐)
 
-### Installation
+### 2. 安装依赖
+```bash
+# 安装所有依赖（前端 + 后端）
+pnpm run install:all
+```
 
-1. **Clone the repository**
+### 3. 环境配置
+```bash
+# 前端环境变量
+cp frontend/env.example frontend/.env.local
 
-   ```bash
-   git clone <repository-url>
-   cd better-saas
-   ```
+# 后端环境变量  
+cp backend/.env.example backend/.env
+```
 
-2. **Install dependencies**
+### 4. 启动开发服务器
+```bash
+# 同时启动前后端（推荐）
+pnpm dev
 
-   ```bash
-   pnpm install
-   ```
+# 或分别启动
+pnpm dev:frontend       # 前端：http://localhost:3000
+pnpm dev:backend        # 后端（完整模式，包含所有API）：http://localhost:8000
+pnpm dev:backend:simple # 后端（简化模式，无需数据库）：http://localhost:8000
+```
 
-3. **Set up environment variables**
+**注意**: 默认的 `pnpm dev:backend` 使用完整模式，包含所有quiz相关的API。需要确保PostgreSQL已启动并正确配置环境变量。如果只是测试基本功能，可以使用 `pnpm dev:backend:simple`。
 
-   ```bash
-   cp env.example .env
-   ```
+### 5. 数据库初始化
 
-   Fill in the required environment variables:
+**首次使用需要初始化数据库：**
 
-   - `DATABASE_URL`: PostgreSQL connection string
-   - `BETTER_AUTH_SECRET`: Random secret for authentication
-   - `GITHUB_CLIENT_ID` & `GITHUB_CLIENT_SECRET`: GitHub OAuth app credentials
-   - `GOOGLE_CLIENT_ID` & `GOOGLE_CLIENT_SECRET`: Google OAuth app credentials
-   - `STRIPE_SECRET_KEY` & `STRIPE_WEBHOOK_SECRET`: Stripe API keys
-   - `NEXT_PUBLIC_STRIPE_PRICE_PRO_MONTHLY` & `NEXT_PUBLIC_STRIPE_PRICE_PRO_YEARLY`: Stripe price IDs
-   - `R2_*`: Cloudflare R2 or AWS S3 configuration
-   - `NEXT_PUBLIC_APP_URL`: Your app's URL
-   - `ADMIN_EMAILS`: Comma-separated list of admin email addresses
+```bash
+# 1. 确保PostgreSQL已启动
+# 2. 创建数据库（如果还没有的话）
+createdb quiz_lib
 
-4. **Set up the database**
+# 3. 配置后端环境变量
+cd backend
+cp .env.example .env
+# 编辑 .env 文件，填入您的数据库连接信息
 
-   ```bash
-   pnpm db:push
-   ```
+# 4. 初始化数据库表和默认数据
+python scripts/init_db.py
 
-5. **Start the development server**
+# 5. 初始化前端数据库（如果需要）
+cd ../frontend && pnpm db:migrate
+```
 
-   ```bash
-   pnpm dev
-   ```
+## 开发指南
 
-   Open [http://localhost:3000](http://localhost:3000) in your browser.
+### 前端开发
+```bash
+cd frontend
+pnpm dev          # 启动开发服务器
+pnpm build        # 构建生产版本
+pnpm test         # 运行测试
+pnpm typecheck    # 类型检查
+```
 
+### 后端开发
+```bash
+cd backend
+python run.py     # 启动开发服务器
+pytest           # 运行测试
+black app/       # 代码格式化
+mypy app/        # 类型检查
+```
 
+## API文档
 
+后端API文档可在以下地址查看：
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
 
-The application supports multiple languages:
+## 贡献指南
 
-- English (default)
-- Chinese (Simplified)
+1. Fork 本项目
+2. 创建特性分支：`git checkout -b feature/amazing-feature`
+3. 提交更改：`git commit -m 'Add amazing feature'`
+4. 推送分支：`git push origin feature/amazing-feature`
+5. 创建 Pull Request
 
-Language files are located in `src/i18n/messages/`.
+## 许可证
 
-
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Write tests for new features
-5. Run tests and quality checks:
-   ```bash
-   pnpm test:all
-   pnpm check
-   pnpm typecheck
-   ```
-6. Ensure all tests pass and coverage thresholds are met
-7. Submit a pull request
-
-
-## 📄 License
-
-This project is licensed under the MIT License.
-
-
-## 🤝 Community & Support
-Scan the code to add the author's WeChat, you will be invited to the exclusive Q&A WeChat group to get the video tutorials and practical project codes that come with it.
-<div align="center">
-  <img src="public/images/wechat.png" alt="WeChat" width="50%" />
-</div>
-
+本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。

@@ -21,7 +21,15 @@
       "Bash(pip install:*)",
       "Bash(python:*)",
       "Bash(curl:*)",
-      "Bash(kill:*)"
+      "Bash(kill:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm db:push:*)",
+      "Bash(pnpm dev:*)",
+      "Bash(cp:*)",
+      "Bash(rm:*)",
+      "Bash(tar:*)",
+      "Bash(tree:*)",
+      "Bash(pip uninstall:*)"
     ],
     "deny": []
   }
