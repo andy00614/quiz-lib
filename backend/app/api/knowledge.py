@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
-from typing import List
+from typing import List, Dict, Any
 
 from app.db.connection import get_session
 from app.db.models import KnowledgeRecord, Outline, Chapter, Quiz, Model, PromptTemplate
@@ -20,18 +20,19 @@ from app.services.llm_service import llm_service
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
 
-@router.get("/", response_model=List[KnowledgeRecordResponse])
+@router.get("/", response_model=List[Dict[str, Any]])
 async def list_knowledge(
     skip: int = 0,
     limit: int = 100,
     status_filter: str = None,
     session: AsyncSession = Depends(get_session)
 ):
-    """获取知识列表"""
+    """获取知识列表（包含统计信息）"""
     query = select(KnowledgeRecord).options(
         selectinload(KnowledgeRecord.model),
         selectinload(KnowledgeRecord.outline_prompt),
-        selectinload(KnowledgeRecord.quiz_prompt)
+        selectinload(KnowledgeRecord.quiz_prompt),
+        selectinload(KnowledgeRecord.outlines).selectinload(Outline.chapters).selectinload(Chapter.quizzes)
     )
     
     if status_filter:
@@ -41,7 +42,140 @@ async def list_knowledge(
     result = await session.execute(query)
     knowledge_records = result.scalars().all()
     
-    return knowledge_records
+    # 为每个知识记录计算统计信息
+    enriched_records = []
+    for record in knowledge_records:
+        # 计算大纲统计
+        total_outline_cost = 0
+        outline_input_tokens = 0
+        outline_output_tokens = 0
+        total_outline_time = 0
+        
+        # 计算题目统计
+        total_quiz_cost = 0
+        quiz_input_tokens = 0
+        quiz_output_tokens = 0
+        total_quiz_time = 0
+        actual_quiz_generation_time = 0  # 实际并行生成时间
+        is_parallel_generation = False  # 是否为并行生成
+        total_quiz_count = 0
+        completed_chapter_count = 0
+        total_chapter_count = 0
+        failed_chapter_count = 0
+        last_error_message = None
+        
+        for outline in record.outlines:
+            # 大纲统计
+            total_outline_cost += float(outline.cost or 0)
+            outline_input_tokens += outline.input_tokens or 0
+            outline_output_tokens += outline.output_tokens or 0
+            total_outline_time += outline.response_time_ms or 0
+            
+            # 保存错误信息
+            if outline.error_message:
+                last_error_message = outline.error_message
+            
+            # 章节和题目统计
+            chapter_creation_times = []
+            chapter_response_times = []
+            
+            for chapter in outline.chapters:
+                total_chapter_count += 1
+                if chapter.quiz_generation_status == 'completed':
+                    completed_chapter_count += 1
+                elif chapter.quiz_generation_status == 'failed':
+                    failed_chapter_count += 1
+                
+                # 收集每个章节第一个题目的创建时间和响应时间
+                chapter_quiz_time = 0
+                if chapter.quizzes:
+                    first_quiz = chapter.quizzes[0]
+                    chapter_creation_times.append(first_quiz.created_at)
+                    if first_quiz.response_time_ms:
+                        chapter_response_times.append(first_quiz.response_time_ms)
+                        chapter_quiz_time = first_quiz.response_time_ms
+                
+                for quiz in chapter.quizzes:
+                    total_quiz_cost += float(quiz.cost or 0)
+                    quiz_input_tokens += quiz.input_tokens or 0
+                    quiz_output_tokens += quiz.output_tokens or 0
+                    total_quiz_time += quiz.response_time_ms or 0
+                    total_quiz_count += 1
+            
+            # 判断是否为并行生成：检查章节创建时间是否相近
+            if len(outline.chapters) > 1 and len(chapter_creation_times) > 1:
+                # 计算创建时间的最大差异（秒）
+                time_diffs = []
+                for i in range(1, len(chapter_creation_times)):
+                    diff = abs((chapter_creation_times[i] - chapter_creation_times[0]).total_seconds())
+                    time_diffs.append(diff)
+                
+                max_time_diff = max(time_diffs) if time_diffs else 0
+                
+                # 如果所有章节的题目在60秒内创建，认为是并行生成
+                if max_time_diff <= 60 and chapter_response_times:
+                    is_parallel_generation = True
+                    actual_quiz_generation_time = max(chapter_response_times)
+        
+        # 构建响应数据
+        record_data = {
+            "id": record.id,
+            "title": record.title,
+            "status": record.status,
+            "created_at": record.created_at.isoformat(),
+            "updated_at": record.updated_at.isoformat(),
+            "model": {
+                "id": record.model.id,
+                "name": record.model.name,
+                "provider": record.model.provider
+            },
+            "parameters": {
+                "temperature": float(record.temperature or 0),
+                "max_tokens": record.max_tokens,
+                "top_p": float(record.top_p or 0)
+            },
+            "statistics": {
+                "total_cost": total_outline_cost + total_quiz_cost,
+                "total_input_tokens": outline_input_tokens + quiz_input_tokens,
+                "total_output_tokens": outline_output_tokens + quiz_output_tokens,
+                "total_tokens": outline_input_tokens + outline_output_tokens + quiz_input_tokens + quiz_output_tokens,
+                "total_time_ms": total_outline_time + (actual_quiz_generation_time or total_quiz_time),
+                "outline_cost": total_outline_cost,
+                "outline_input_tokens": outline_input_tokens,
+                "outline_output_tokens": outline_output_tokens,
+                "outline_time_ms": total_outline_time,
+                "quiz_cost": total_quiz_cost,
+                "quiz_input_tokens": quiz_input_tokens,
+                "quiz_output_tokens": quiz_output_tokens,
+                "quiz_time_ms": total_quiz_time,
+                "actual_quiz_time_ms": actual_quiz_generation_time,
+                "quiz_count": total_quiz_count,
+                "chapter_count": total_chapter_count,
+                "completed_chapter_count": completed_chapter_count,
+                "failed_chapter_count": failed_chapter_count,
+                "completion_rate": (completed_chapter_count / total_chapter_count * 100) if total_chapter_count > 0 else 0,
+                "cost_calculation": {
+                    "model_name": record.model.name,
+                    "input_price_per_1k": float(record.model.input_price_per_1k or 0),
+                    "output_price_per_1k": float(record.model.output_price_per_1k or 0)
+                },
+                "last_error": last_error_message
+            },
+            "outlines": [
+                {
+                    "id": outline.id,
+                    "content": outline.content,
+                    "cost": float(outline.cost or 0),
+                    "tokens": (outline.input_tokens or 0) + (outline.output_tokens or 0),
+                    "time_ms": outline.response_time_ms or 0,
+                    "created_at": outline.created_at.isoformat()
+                } for outline in record.outlines
+            ]
+        }
+        
+        enriched_records.append(record_data)
+    
+    return enriched_records
 
 
 @router.get("/{knowledge_id}", response_model=KnowledgeRecordResponse)

@@ -4,6 +4,7 @@ import anthropic
 import google.generativeai as genai
 import json
 import time
+import re
 from app.core.config import settings
 import structlog
 
@@ -199,19 +200,58 @@ class LLMService:
             # 尝试直接解析
             return json.loads(content)
         except json.JSONDecodeError:
-            # 尝试提取JSON内容
-            start_idx = content.find('{')
-            end_idx = content.rfind('}')
+            # 尝试从markdown代码块中提取JSON
+            import re
             
-            if start_idx != -1 and end_idx != -1:
-                json_content = content[start_idx:end_idx + 1]
+            # 尝试匹配```json...```模式
+            json_pattern = r'```(?:json)?\s*\n?(.*?)\n?```'
+            match = re.search(json_pattern, content, re.DOTALL)
+            
+            if match:
+                json_content = match.group(1).strip()
                 try:
                     return json.loads(json_content)
                 except json.JSONDecodeError:
                     pass
             
-            logger.error(f"Failed to parse JSON response: {content}")
+            # 尝试提取JSON内容（从第一个{到最后一个}）
+            start_idx = content.find('{')
+            end_idx = content.rfind('}')
+            
+            if start_idx != -1 and end_idx != -1:
+                json_content = content[start_idx:end_idx + 1]
+                
+                # 尝试修复常见的JSON格式问题
+                json_content = self._fix_json_format(json_content)
+                
+                try:
+                    return json.loads(json_content)
+                except json.JSONDecodeError as e:
+                    logger.error(f"JSON decode error: {e}, content: {json_content[:200]}...")
+            
+            logger.error(f"Failed to parse JSON response: {content[:200]}...")
             return None
+    
+    def _fix_json_format(self, json_content: str) -> str:
+        """尝试修复常见的JSON格式问题"""
+        # 移除尾部的逗号
+        json_content = re.sub(r',\s*}', '}', json_content)
+        json_content = re.sub(r',\s*]', ']', json_content)
+        
+        # 尝试补全不完整的JSON
+        open_braces = json_content.count('{')
+        close_braces = json_content.count('}')
+        
+        if open_braces > close_braces:
+            json_content += '}' * (open_braces - close_braces)
+        
+        open_brackets = json_content.count('[')
+        close_brackets = json_content.count(']')
+        
+        if open_brackets > close_brackets:
+            json_content += ']' * (open_brackets - close_brackets)
+            
+        return json_content
     
     def calculate_cost(
         self,

@@ -3,8 +3,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Dict, Any
 import json
+import asyncio
+import time
+import structlog
 
-from app.db.connection import get_session
+logger = structlog.get_logger()
+
+from app.db.connection import get_session, async_session
 from app.db.models import (
     KnowledgeRecord, Outline, Chapter, Quiz, Model, PromptTemplate, APIRequestLog
 )
@@ -235,6 +240,173 @@ async def generate_outline(
         )
 
 
+async def generate_chapter_quiz(
+    chapter_id: int,
+    model: Model, 
+    knowledge: KnowledgeRecord,
+    default_prompt: str,
+    knowledge_id: int,
+    background_tasks: BackgroundTasks
+) -> Dict[str, Any]:
+    """为单个章节生成题目（并行处理用）"""
+    # 为每个并行任务创建独立的数据库session
+    async with async_session() as session:
+        try:
+            # 重新获取章节对象（避免跨session问题）
+            chapter_result = await session.execute(
+                select(Chapter).where(Chapter.id == chapter_id)
+            )
+            chapter = chapter_result.scalar_one_or_none()
+            
+            if not chapter:
+                return {
+                    "chapter_id": chapter_id,
+                    "chapter_title": "Unknown",
+                    "status": "failed",
+                    "error": "Chapter not found"
+                }
+            
+            # 更新章节状态
+            chapter.quiz_generation_status = "generating"
+            await session.commit()
+            
+            # 准备prompt
+            final_prompt = default_prompt.replace("{{chapter_title}}", chapter.title)
+            final_prompt = final_prompt.replace("{{chapter_content}}", chapter.content or "")
+            final_prompt = final_prompt.replace("{{question_count}}", "10")  # 默认10题
+            
+            # 调用LLM生成题目
+            logger.info(f"Generating quiz for chapter {chapter.id}: {chapter.title}")
+            llm_response = await llm_service.generate(
+                prompt=final_prompt,
+                model=model.name,
+                temperature=float(knowledge.temperature),
+                max_tokens=knowledge.max_tokens,
+                top_p=float(knowledge.top_p)
+            )
+            logger.info(f"LLM response for chapter {chapter.id}: success={llm_response.get('success')}")
+            
+            if llm_response.get("success"):
+                # 解析LLM响应
+                content = llm_response.get("content", "")
+                parsed_content = llm_service.parse_json_response(content)
+                
+                if parsed_content and "quizzes" in parsed_content:
+                    # 计算成本
+                    usage = llm_response.get("usage", {})
+                    input_tokens = usage.get("prompt_tokens", 0)
+                    output_tokens = usage.get("completion_tokens", 0)
+                    cost = llm_service.calculate_cost(
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        input_price_per_1k=float(model.input_price_per_1k or 0),
+                        output_price_per_1k=float(model.output_price_per_1k or 0)
+                    )
+                    
+                    # 创建题目记录
+                    quiz_count = 0
+                    quiz_data_list = parsed_content.get("quizzes", [])
+                    
+                    for quiz_data in quiz_data_list:
+                        quiz = Quiz(
+                            chapter_id=chapter.id,
+                            question_number=quiz_data.get("question_number", quiz_count + 1),
+                            question=quiz_data.get("question", ""),
+                            options=quiz_data.get("options", {}),
+                            correct_answer=quiz_data.get("correct_answer", "A"),
+                            explanation=quiz_data.get("explanation", ""),
+                            model_id=model.id,
+                            prompt_used=final_prompt,
+                            input_tokens=input_tokens // len(quiz_data_list) if quiz_data_list else 0,
+                            output_tokens=output_tokens // len(quiz_data_list) if quiz_data_list else 0,
+                            response_time_ms=llm_response.get("response_time_ms", 0),
+                            cost=cost / len(quiz_data_list) if quiz_data_list else 0
+                        )
+                        session.add(quiz)
+                        quiz_count += 1
+                    
+                    # 更新章节状态
+                    chapter.quiz_generation_status = "completed"
+                    
+                    # 在当前session中直接记录API请求日志
+                    log_entry = APIRequestLog(
+                        knowledge_id=knowledge_id,
+                        model_id=model.id,
+                        request_type="batch_quiz_generation",
+                        prompt=final_prompt,
+                        request_params={
+                            "temperature": float(knowledge.temperature),
+                            "max_tokens": knowledge.max_tokens,
+                            "top_p": float(knowledge.top_p),
+                            "question_count": 10
+                        },
+                        response=content,
+                        status="success",
+                        error_message=None,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        response_time_ms=llm_response.get("response_time_ms", 0),
+                        cost=cost
+                    )
+                    session.add(log_entry)
+                    await session.commit()
+                    
+                    return {
+                        "chapter_id": chapter.id,
+                        "chapter_title": chapter.title,
+                        "status": "success",
+                        "quiz_count": quiz_count,
+                        "cost": cost,
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                        "response_time_ms": llm_response.get("response_time_ms", 0)
+                    }
+                else:
+                    # 解析失败
+                    logger.error(f"Failed to parse quiz response for chapter {chapter.id}. Content: {content[:200]}...")
+                    chapter.quiz_generation_status = "failed"
+                    await session.commit()
+                    return {
+                        "chapter_id": chapter.id,
+                        "chapter_title": chapter.title,
+                        "status": "failed",
+                        "error": f"Failed to parse quiz response. Raw content: {content[:100]}..."
+                    }
+            else:
+                # LLM调用失败
+                error_msg = llm_response.get("error", "Unknown error")
+                logger.error(f"LLM generation failed for chapter {chapter.id}: {error_msg}")
+                chapter.quiz_generation_status = "failed"
+                await session.commit()
+                return {
+                    "chapter_id": chapter.id,
+                    "chapter_title": chapter.title,
+                    "status": "failed",
+                    "error": error_msg
+                }
+                
+        except Exception as e:
+            # 处理异常
+            try:
+                # 重新获取章节对象以更新状态
+                chapter_result = await session.execute(
+                    select(Chapter).where(Chapter.id == chapter_id)
+                )
+                chapter = chapter_result.scalar_one_or_none()
+                if chapter:
+                    chapter.quiz_generation_status = "failed"
+                    await session.commit()
+            except:
+                pass  # 如果状态更新失败，忽略
+                
+            return {
+                "chapter_id": chapter_id,
+                "chapter_title": "Unknown",
+                "status": "failed",
+                "error": str(e)
+            }
+
+
 @router.post("/quiz/batch", response_model=Dict[str, Any])
 async def generate_batch_quiz(
     knowledge_id: int,
@@ -300,147 +472,65 @@ async def generate_batch_quiz(
     template = template_result.scalar_one_or_none()
     default_prompt = template.content if template else "请根据章节内容生成选择题。"
     
-    # 为每个章节批量生成题目
+    # 并行为所有章节生成题目
+    tasks = [
+        generate_chapter_quiz(
+            chapter_id=chapter.id,
+            model=model,
+            knowledge=knowledge,
+            default_prompt=default_prompt,
+            knowledge_id=knowledge_id,
+            background_tasks=background_tasks
+        )
+        for chapter in chapters
+    ]
+    
+    # 记录开始时间
+    start_time = time.time()
+    
+    # 并行执行所有任务
+    chapter_results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    # 记录结束时间并计算实际耗时
+    end_time = time.time()
+    actual_total_time_ms = int((end_time - start_time) * 1000)
+    
+    # 整理结果
     batch_results = {
         "total_chapters": len(chapters),
         "success_count": 0,
         "failed_count": 0,
         "chapter_results": [],
         "total_cost": 0.0,
-        "total_tokens": 0
+        "total_input_tokens": 0,
+        "total_output_tokens": 0,
+        "total_time_ms": actual_total_time_ms,  # 使用实际并行执行时间
+        "max_single_time_ms": 0  # 单个任务的最长时间
     }
     
-    for chapter in chapters:
-        try:
-            # 更新章节状态
-            chapter.quiz_generation_status = "generating"
-            await session.commit()
-            
-            # 准备prompt
-            final_prompt = default_prompt.replace("{{chapter_title}}", chapter.title)
-            final_prompt = final_prompt.replace("{{chapter_content}}", chapter.content or "")
-            final_prompt = final_prompt.replace("{{question_count}}", "10")  # 默认10题
-            
-            # 调用LLM生成题目
-            llm_response = await llm_service.generate(
-                prompt=final_prompt,
-                model=model.name,
-                temperature=float(knowledge.temperature),
-                max_tokens=knowledge.max_tokens,
-                top_p=float(knowledge.top_p)
-            )
-            
-            if llm_response.get("success"):
-                # 解析LLM响应
-                content = llm_response.get("content", "")
-                parsed_content = llm_service.parse_json_response(content)
-                
-                if parsed_content and "quizzes" in parsed_content:
-                    # 计算成本
-                    usage = llm_response.get("usage", {})
-                    input_tokens = usage.get("prompt_tokens", 0)
-                    output_tokens = usage.get("completion_tokens", 0)
-                    cost = llm_service.calculate_cost(
-                        input_tokens=input_tokens,
-                        output_tokens=output_tokens,
-                        input_price_per_1k=float(model.input_price_per_1k or 0),
-                        output_price_per_1k=float(model.output_price_per_1k or 0)
-                    )
-                    
-                    # 创建题目记录
-                    quiz_count = 0
-                    quiz_data_list = parsed_content.get("quizzes", [])
-                    
-                    for quiz_data in quiz_data_list:
-                        quiz = Quiz(
-                            chapter_id=chapter.id,
-                            question_number=quiz_data.get("question_number", quiz_count + 1),
-                            question=quiz_data.get("question", ""),
-                            options=quiz_data.get("options", {}),
-                            correct_answer=quiz_data.get("correct_answer", "A"),
-                            explanation=quiz_data.get("explanation", ""),
-                            model_id=model.id,
-                            prompt_used=final_prompt,
-                            input_tokens=input_tokens // len(quiz_data_list) if quiz_data_list else 0,
-                            output_tokens=output_tokens // len(quiz_data_list) if quiz_data_list else 0,
-                            response_time_ms=llm_response.get("response_time_ms", 0),
-                            cost=cost / len(quiz_data_list) if quiz_data_list else 0
-                        )
-                        session.add(quiz)
-                        quiz_count += 1
-                    
-                    # 更新章节状态
-                    chapter.quiz_generation_status = "completed"
-                    await session.commit()
-                    
-                    # 记录成功结果
-                    batch_results["success_count"] += 1
-                    batch_results["total_cost"] += cost
-                    batch_results["total_tokens"] += input_tokens + output_tokens
-                    batch_results["chapter_results"].append({
-                        "chapter_id": chapter.id,
-                        "chapter_title": chapter.title,
-                        "status": "success",
-                        "quiz_count": quiz_count,
-                        "cost": cost,
-                        "tokens": input_tokens + output_tokens
-                    })
-                    
-                    # 记录API请求日志
-                    background_tasks.add_task(
-                        log_api_request,
-                        session=session,
-                        knowledge_id=knowledge_id,
-                        model_id=model.id,
-                        request_type="batch_quiz_generation",
-                        prompt=final_prompt,
-                        request_params={
-                            "temperature": float(knowledge.temperature),
-                            "max_tokens": knowledge.max_tokens,
-                            "top_p": float(knowledge.top_p),
-                            "question_count": 10
-                        },
-                        response=content,
-                        status="success",
-                        input_tokens=input_tokens,
-                        output_tokens=output_tokens,
-                        response_time_ms=llm_response.get("response_time_ms", 0),
-                        cost=cost
-                    )
-                else:
-                    # 解析失败
-                    chapter.quiz_generation_status = "failed"
-                    await session.commit()
-                    batch_results["failed_count"] += 1
-                    batch_results["chapter_results"].append({
-                        "chapter_id": chapter.id,
-                        "chapter_title": chapter.title,
-                        "status": "failed",
-                        "error": "Failed to parse quiz response"
-                    })
-            else:
-                # LLM调用失败
-                chapter.quiz_generation_status = "failed"
-                await session.commit()
-                batch_results["failed_count"] += 1
-                batch_results["chapter_results"].append({
-                    "chapter_id": chapter.id,
-                    "chapter_title": chapter.title,
-                    "status": "failed",
-                    "error": llm_response.get("error", "Unknown error")
-                })
-                
-        except Exception as e:
-            # 处理异常
-            chapter.quiz_generation_status = "failed"
-            await session.commit()
+    for result in chapter_results:
+        if isinstance(result, Exception):
+            # 处理异常情况
             batch_results["failed_count"] += 1
             batch_results["chapter_results"].append({
-                "chapter_id": chapter.id,
-                "chapter_title": chapter.title,
                 "status": "failed",
-                "error": str(e)
+                "error": str(result)
             })
+        elif result["status"] == "success":
+            batch_results["success_count"] += 1
+            batch_results["total_cost"] += result["cost"]
+            batch_results["total_input_tokens"] += result["input_tokens"]
+            batch_results["total_output_tokens"] += result["output_tokens"]
+            # 记录最长的单个任务时间
+            batch_results["max_single_time_ms"] = max(
+                batch_results["max_single_time_ms"], 
+                result["response_time_ms"]
+            )
+            batch_results["chapter_results"].append(result)
+        else:
+            batch_results["failed_count"] += 1
+            batch_results["chapter_results"].append(result)
+    
     
     return batch_results
 
