@@ -31,7 +31,8 @@
       "Bash(tree:*)",
       "Bash(pip uninstall:*)",
       "Bash(git rm:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(git push:*)"
     ],
     "deny": []
   }

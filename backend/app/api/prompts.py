@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import List
+from typing import List, Dict, Any
+import re
+import json
 
 from app.db.connection import get_session
 from app.db.models import PromptTemplate
@@ -12,6 +14,104 @@ from app.schemas.models import (
 )
 
 router = APIRouter(prefix="/prompts", tags=["prompts"])
+
+
+def extract_variables_from_template(content: str) -> List[Dict[str, Any]]:
+    """从模板内容中提取变量"""
+    # 匹配 {{variable_name}} 格式的变量
+    pattern = r'\{\{(\w+)\}\}'
+    variables = re.findall(pattern, content)
+    
+    # 定义预设变量的元数据
+    variable_metadata = {
+        # 大纲相关变量
+        'topic': {
+            'displayName': '主题',
+            'type': 'text',
+            'required': True,
+            'description': '知识内容的主题',
+            'placeholder': '例如：操作系统原理'
+        },
+        'level': {
+            'displayName': '难度等级',
+            'type': 'select',
+            'required': False,
+            'options': ['初级', '中级', '高级'],
+            'defaultValue': '中级',
+            'description': '内容的难度级别'
+        },
+        'chapters': {
+            'displayName': '章节数量',
+            'type': 'number',
+            'required': False,
+            'defaultValue': 5,
+            'min': 3,
+            'max': 10,
+            'description': '生成的章节数量'
+        },
+        'language': {
+            'displayName': '语言',
+            'type': 'select',
+            'required': False,
+            'options': ['中文', '英文'],
+            'defaultValue': '中文',
+            'description': '内容使用的语言'
+        },
+        # 题目相关变量
+        'chapter_title': {
+            'displayName': '章节标题',
+            'type': 'text',
+            'required': True,
+            'description': '当前章节的标题'
+        },
+        'chapter_content': {
+            'displayName': '章节内容',
+            'type': 'text',
+            'required': True,
+            'description': '章节的详细内容'
+        },
+        'question_count': {
+            'displayName': '题目数量',
+            'type': 'number',
+            'required': False,
+            'defaultValue': 10,
+            'min': 5,
+            'max': 20,
+            'description': '生成的题目数量'
+        },
+        'question_type': {
+            'displayName': '题目类型',
+            'type': 'select',
+            'required': False,
+            'options': ['单选题', '多选题', '判断题'],
+            'defaultValue': '单选题',
+            'description': '题目的类型'
+        }
+    }
+    
+    # 构建变量信息列表
+    variable_list = []
+    for var in set(variables):  # 使用set去重
+        var_lower = var.lower()
+        if var_lower in variable_metadata:
+            variable_info = {
+                'name': f'{{{{{var}}}}}',
+                'originalName': var,
+                **variable_metadata[var_lower]
+            }
+        else:
+            # 未知变量，使用默认配置
+            variable_info = {
+                'name': f'{{{{{var}}}}}',
+                'originalName': var,
+                'displayName': var,
+                'type': 'text',
+                'required': False,
+                'description': f'自定义变量: {var}'
+            }
+        variable_list.append(variable_info)
+    
+    return variable_list
 
 
 @router.get("/", response_model=List[PromptTemplateResponse])
@@ -103,8 +203,14 @@ async def create_prompt_template(
             .values(is_default=False)
         )
     
+    # 自动解析模板中的变量
+    template_dict = template_data.model_dump()
+    if 'variables' not in template_dict or not template_dict['variables']:
+        variables = extract_variables_from_template(template_dict['content'])
+        template_dict['variables'] = variables
+    
     # 创建新模板
-    template = PromptTemplate(**template_data.model_dump())
+    template = PromptTemplate(**template_dict)
     session.add(template)
     await session.commit()
     await session.refresh(template)
@@ -213,3 +319,16 @@ async def set_default_template(
     await session.refresh(template)
     
     return template
+
+
+@router.post("/parse-variables", response_model=List[Dict[str, Any]])
+async def parse_template_variables(
+    content: Dict[str, str]
+):
+    """解析模板内容中的变量"""
+    template_content = content.get("content", "")
+    if not template_content:
+        return []
+    
+    variables = extract_variables_from_template(template_content)
+    return variables

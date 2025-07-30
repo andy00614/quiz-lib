@@ -170,8 +170,20 @@ async def list_knowledge(
                     "time_ms": outline.response_time_ms or 0,
                     "created_at": outline.created_at.isoformat()
                 } for outline in record.outlines
-            ]
+            ],
+            "prompt_used": record.outlines[0].prompt_used if record.outlines else None,
+            "quiz_prompt_used": None  # Will be set below
         }
+        
+        # Get quiz prompt from first quiz if available
+        if record.outlines:
+            for outline in record.outlines:
+                for chapter in outline.chapters:
+                    if chapter.quizzes:
+                        record_data["quiz_prompt_used"] = chapter.quizzes[0].prompt_used
+                        break
+                if record_data["quiz_prompt_used"]:
+                    break
         
         enriched_records.append(record_data)
     
