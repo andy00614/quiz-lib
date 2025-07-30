@@ -1,8 +1,0 @@
-{
-  "/[locale]/(home)/page": "app/[locale]/(home)/page.js",
-  "/[locale]/(quiz-app)/knowledge/[id]/page": "app/[locale]/(quiz-app)/knowledge/[id]/page.js",
-  "/[locale]/(quiz-app)/knowledge/new/page": "app/[locale]/(quiz-app)/knowledge/new/page.js",
-  "/[locale]/(quiz-app)/knowledge/page": "app/[locale]/(quiz-app)/knowledge/page.js",
-  "/[locale]/(quiz-app)/logs/page": "app/[locale]/(quiz-app)/logs/page.js",
-  "/api/auth/[...all]/route": "app/api/auth/[...all]/route.js"
-}
