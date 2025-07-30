@@ -29,7 +29,9 @@
       "Bash(rm:*)",
       "Bash(tar:*)",
       "Bash(tree:*)",
-      "Bash(pip uninstall:*)"
+      "Bash(pip uninstall:*)",
+      "Bash(git rm:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

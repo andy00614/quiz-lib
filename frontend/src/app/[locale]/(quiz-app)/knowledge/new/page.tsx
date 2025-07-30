@@ -9,6 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { CheckCircle, Loader2 } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
 import { toast } from 'sonner';
 
@@ -31,6 +33,11 @@ export default function NewKnowledgePage() {
   const [outlinePrompt, setOutlinePrompt] = useState('');
   const [quizPrompt, setQuizPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState<{
+    step: 'outline' | 'quiz' | 'completed';
+    message: string;
+    progress?: number;
+  } | null>(null);
 
   useEffect(() => {
     // 从后端获取模型列表
@@ -56,8 +63,14 @@ export default function NewKnowledgePage() {
     if (!question || !selectedModel) return;
     
     setIsGenerating(true);
+    setGenerationProgress({
+      step: 'outline',
+      message: '正在生成学习大纲...',
+      progress: 10
+    });
+
     try {
-      // 直接生成大纲（会自动创建知识记录）
+      // 第一步：生成大纲
       const outlineResponse = await apiClient.generateOutline({
         title: question,
         model_id: parseInt(selectedModel),
@@ -72,11 +85,52 @@ export default function NewKnowledgePage() {
       }
 
       const knowledgeId = outlineResponse.data.knowledge_id;
-      toast.success('知识内容生成成功！');
-      router.push(`/knowledge/${knowledgeId}`);
+      
+      setGenerationProgress({
+        step: 'quiz',
+        message: '大纲生成完成，正在为所有章节生成题目...',
+        progress: 50
+      });
+
+      // 第二步：自动为所有章节生成题目
+      const batchQuizResponse = await apiClient.generateBatchQuiz(knowledgeId);
+
+      if (!batchQuizResponse.success || !batchQuizResponse.data) {
+        // 即使题目生成失败，大纲已经创建成功，仍然跳转到详情页
+        console.warn('批量生成题目失败:', batchQuizResponse.error);
+        toast.error('大纲生成成功，但部分题目生成失败，请在详情页面手动生成');
+        router.push(`/knowledge/${knowledgeId}`);
+        return;
+      }
+
+      const batchResult = batchQuizResponse.data;
+      
+      setGenerationProgress({
+        step: 'completed',
+        message: `生成完成！成功生成 ${batchResult.success_count} 个章节的题目`,
+        progress: 100
+      });
+
+      // 显示详细的生成结果
+      if (batchResult.failed_count > 0) {
+        toast.warning(
+          `生成完成！成功: ${batchResult.success_count}个章节，失败: ${batchResult.failed_count}个章节。总费用: $${batchResult.total_cost.toFixed(4)}`
+        );
+      } else {
+        toast.success(
+          `生成完成！所有 ${batchResult.success_count} 个章节的题目都已生成。总费用: $${batchResult.total_cost.toFixed(4)}`
+        );
+      }
+
+      // 延迟一秒显示完成状态，然后跳转
+      setTimeout(() => {
+        router.push(`/knowledge/${knowledgeId}`);
+      }, 1500);
+
     } catch (error) {
       console.error('生成失败:', error);
       toast.error(error instanceof Error ? error.message : '生成失败，请稍后重试');
+      setGenerationProgress(null);
     } finally {
       setIsGenerating(false);
     }
@@ -192,13 +246,53 @@ export default function NewKnowledgePage() {
             </Dialog>
           </div>
 
+          {/* 进度显示 */}
+          {generationProgress && (
+            <Card className="mb-4">
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    {generationProgress.step === 'completed' ? (
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                    ) : (
+                      <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+                    )}
+                    <span className="text-sm font-medium">{generationProgress.message}</span>
+                  </div>
+                  
+                  {generationProgress.progress !== undefined && (
+                    <div className="space-y-2">
+                      <Progress value={generationProgress.progress} className="w-full" />
+                      <div className="text-xs text-muted-foreground text-right">
+                        {generationProgress.progress}%
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="text-sm text-muted-foreground">
+                    {generationProgress.step === 'outline' && '📚 正在分析您的主题并创建详细的学习大纲...'}
+                    {generationProgress.step === 'quiz' && '📝 正在为每个章节生成练习题目，这可能需要几分钟时间...'}
+                    {generationProgress.step === 'completed' && '✅ 所有内容都已生成完成，即将跳转到详情页面！'}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Button 
             onClick={handleGenerate} 
             disabled={!question || !selectedModel || isGenerating}
             className="w-full"
             size="lg"
           >
-            {isGenerating ? '生成中...' : '生成知识内容'}
+            {isGenerating ? (
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                生成中...
+              </div>
+            ) : (
+              '生成知识内容和题目'
+            )}
           </Button>
         </CardContent>
       </Card>

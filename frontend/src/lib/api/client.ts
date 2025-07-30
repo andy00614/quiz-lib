@@ -119,6 +119,27 @@ export class ApiClient {
     });
   }
 
+  async generateBatchQuiz(knowledgeId: number) {
+    return this.request<{
+      total_chapters: number;
+      success_count: number;
+      failed_count: number;
+      chapter_results: Array<{
+        chapter_id: number;
+        chapter_title: string;
+        status: 'success' | 'failed';
+        quiz_count?: number;
+        cost?: number;
+        tokens?: number;
+        error?: string;
+      }>;
+      total_cost: number;
+      total_tokens: number;
+    }>(`/generation/quiz/batch?knowledge_id=${knowledgeId}`, {
+      method: 'POST',
+    });
+  }
+
   // Analytics API
   async getDashboardStats() {
     return this.request<any>('/analytics/dashboard');

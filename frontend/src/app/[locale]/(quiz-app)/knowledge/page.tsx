@@ -54,6 +54,8 @@ export default function KnowledgeListPage() {
     }
   };
 
+  console.log(knowledgeList);
+
   return (
     <div className="container mx-auto max-w-6xl p-6">
       <div className="flex justify-between items-center mb-6">
