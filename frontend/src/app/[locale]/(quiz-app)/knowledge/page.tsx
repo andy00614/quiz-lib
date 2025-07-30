@@ -4,7 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Calendar, Bot, Clock, Hash, DollarSign, AlertCircle, Info } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Plus, Calendar, Bot, Clock, Hash, DollarSign, AlertCircle, Info, FileText, Copy, Eye } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
 import { toast } from 'sonner';
 import { formatCost, formatInputOutputTokens, formatCostDetails, formatTime, getStatusColor, getStatusText } from '@/lib/format';
@@ -46,6 +48,8 @@ interface KnowledgeItem {
     };
     last_error?: string;
   };
+  prompt_used?: string;
+  quiz_prompt_used?: string;
   outlines?: any[];
 }
 
@@ -197,6 +201,126 @@ export default function KnowledgeListPage() {
                             }}
                           />
                         )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Prompt信息 - 支持显示两种prompt */}
+                  {(item.prompt_used || item.quiz_prompt_used) && (
+                    <div className="pt-2 border-t">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-1">
+                          <FileText className="w-3 h-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">Prompt</span>
+                          {item.prompt_used && item.quiz_prompt_used && (
+                            <span className="text-xs text-muted-foreground">(2个)</span>
+                          )}
+                        </div>
+                        <div className="flex gap-1">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-5 px-1 text-xs"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <Eye className="w-3 h-3" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-4xl max-h-[80vh]">
+                              <DialogHeader>
+                                <DialogTitle>{item.title} - 使用的Prompt</DialogTitle>
+                              </DialogHeader>
+                              <div className="overflow-y-auto max-h-[60vh]">
+                                <Tabs defaultValue="outline">
+                                  <TabsList className="grid w-full grid-cols-2">
+                                    <TabsTrigger value="outline" disabled={!item.prompt_used}>
+                                      大纲 Prompt {!item.prompt_used && '(无)'}
+                                    </TabsTrigger>
+                                    <TabsTrigger value="quiz" disabled={!item.quiz_prompt_used}>
+                                      题目 Prompt {!item.quiz_prompt_used && '(无)'}
+                                    </TabsTrigger>
+                                  </TabsList>
+                                  
+                                  {item.prompt_used && (
+                                    <TabsContent value="outline">
+                                      <Card>
+                                        <CardContent className="pt-4">
+                                          <pre className="whitespace-pre-wrap text-sm font-mono bg-muted p-4 rounded">
+                                            {item.prompt_used}
+                                          </pre>
+                                        </CardContent>
+                                      </Card>
+                                    </TabsContent>
+                                  )}
+                                  
+                                  {item.quiz_prompt_used && (
+                                    <TabsContent value="quiz">
+                                      <Card>
+                                        <CardContent className="pt-4">
+                                          <pre className="whitespace-pre-wrap text-sm font-mono bg-muted p-4 rounded">
+                                            {item.quiz_prompt_used}
+                                          </pre>
+                                        </CardContent>
+                                      </Card>
+                                    </TabsContent>
+                                  )}
+                                </Tabs>
+                              </div>
+                              <div className="flex justify-end gap-2">
+                                {item.prompt_used && (
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(item.prompt_used || '');
+                                      toast.success('大纲Prompt已复制');
+                                    }}
+                                  >
+                                    <Copy className="w-4 h-4 mr-2" />
+                                    复制大纲Prompt
+                                  </Button>
+                                )}
+                                {item.quiz_prompt_used && (
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(item.quiz_prompt_used || '');
+                                      toast.success('题目Prompt已复制');
+                                    }}
+                                  >
+                                    <Copy className="w-4 h-4 mr-2" />
+                                    复制题目Prompt
+                                  </Button>
+                                )}
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-5 px-1"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigator.clipboard.writeText(item.prompt_used || item.quiz_prompt_used || '');
+                              toast.success('Prompt已复制');
+                            }}
+                          >
+                            <Copy className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="bg-gradient-to-r from-blue-50/50 to-indigo-50/50 rounded px-2 py-1 border border-blue-100/50">
+                        <div className="text-xs text-gray-600 font-mono line-clamp-2">
+                          {/* 优先显示大纲prompt，如果没有则显示题目prompt */}
+                          {(() => {
+                            const displayPrompt = item.prompt_used || item.quiz_prompt_used || '';
+                            const promptType = item.prompt_used ? '大纲: ' : '题目: ';
+                            return displayPrompt.length > 100 
+                              ? `${promptType}${displayPrompt.substring(0, 100)}...` 
+                              : `${promptType}${displayPrompt}`;
+                          })()}
+                        </div>
                       </div>
                     </div>
                   )}

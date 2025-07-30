@@ -69,8 +69,56 @@ export class ApiClient {
 
   // Prompt Templates API
   async getPromptTemplates(type?: 'outline' | 'quiz') {
-    const params = type ? `?type=${type}` : '';
-    return this.request<any[]>(`/prompt-templates${params}`);
+    const params = type ? `?type_filter=${type}` : '';
+    return this.request<any[]>(`/prompts${params}`);
+  }
+
+  async getPromptTemplate(id: number) {
+    return this.request<any>(`/prompts/${id}`);
+  }
+
+  async createPromptTemplate(data: {
+    type: 'outline' | 'quiz';
+    name: string;
+    content: string;
+    is_default?: boolean;
+    variables?: any[];
+  }) {
+    return this.request<any>('/prompts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updatePromptTemplate(id: number, data: {
+    name?: string;
+    content?: string;
+    is_default?: boolean;
+    variables?: any[];
+  }) {
+    return this.request<any>(`/prompts/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deletePromptTemplate(id: number) {
+    return this.request<void>(`/prompts/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async setDefaultTemplate(id: number) {
+    return this.request<any>(`/prompts/${id}/set-default`, {
+      method: 'PATCH',
+    });
+  }
+
+  async parseTemplateVariables(content: string) {
+    return this.request<any[]>('/prompts/parse-variables', {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
   }
 
   // Knowledge Records API
@@ -150,11 +198,12 @@ export class ApiClient {
   }
 
   async getRequestLogs(params?: {
-    model_id?: number;
+    model_id?: number | string;
     knowledge_id?: number;
-    status_filter?: string;
+    status?: string;
     request_type?: string;
     limit?: number;
+    offset?: number;
     skip?: number;
   }) {
     const searchParams = new URLSearchParams();

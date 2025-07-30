@@ -4,11 +4,12 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Loader2, Download, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Loader2, Download, RefreshCw, Bot, Clock, Hash, DollarSign, Settings, TrendingUp, FileText, Copy, Eye } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
 import { toast } from 'sonner';
+import { formatCost, formatInputOutputTokens, formatTime } from '@/lib/format';
 
 interface Chapter {
   id: number;
@@ -32,15 +33,53 @@ interface Quiz {
 interface Knowledge {
   id: number;
   title: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
   model: {
     id: number;
     name: string;
+    provider: string;
+  };
+  parameters: {
+    temperature: number;
+    max_tokens: number;
+    top_p: number;
+  };
+  statistics: {
+    total_cost: number;
+    total_input_tokens: number;
+    total_output_tokens: number;
+    total_tokens: number;
+    total_time_ms: number;
+    outline_cost: number;
+    outline_input_tokens: number;
+    outline_output_tokens: number;
+    outline_time_ms: number;
+    quiz_cost: number;
+    quiz_input_tokens: number;
+    quiz_output_tokens: number;
+    quiz_time_ms: number;
+    actual_quiz_time_ms: number;
+    quiz_count: number;
+    chapter_count: number;
+    completed_chapter_count: number;
+    failed_chapter_count: number;
+    completion_rate: number;
+    cost_calculation: {
+      model_name: string;
+      input_price_per_1k: number;
+      output_price_per_1k: number;
+    };
+    last_error?: string;
   };
   prompt_used?: string;
+  quiz_prompt_used?: string;
   outlines?: any[];
 }
 
-export default function KnowledgeDetailPage({ params }: { params: { id: string } }) {
+export default async function KnowledgeDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = await params;
   const router = useRouter();
   const [knowledge, setKnowledge] = useState<Knowledge | null>(null);
   const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
@@ -50,18 +89,22 @@ export default function KnowledgeDetailPage({ params }: { params: { id: string }
   const [generatingChapterId, setGeneratingChapterId] = useState<number | null>(null);
 
   useEffect(() => {
-    // 从后端获取知识详情
+    // 从后端获取知识详情（使用列表API获取完整统计信息）
     const fetchKnowledge = async () => {
       try {
-        const response = await apiClient.getKnowledgeRecord(parseInt(params.id));
-        if (response.success && response.data) {
-          setKnowledge(response.data);
-          
-          // 获取章节（直接从 knowledge API 获取）
-          const chaptersResponse = await apiClient.getChapters(parseInt(params.id));
-          if (chaptersResponse.success && chaptersResponse.data) {
-            setChapters(chaptersResponse.data);
+        // 获取知识列表以获取完整统计信息
+        const listResponse = await apiClient.getKnowledgeRecords();
+        if (listResponse.success && listResponse.data) {
+          const knowledgeItem = listResponse.data.find((item: any) => item.id === parseInt(resolvedParams.id));
+          if (knowledgeItem) {
+            setKnowledge(knowledgeItem);
           }
+        }
+        
+        // 获取章节
+        const chaptersResponse = await apiClient.getChapters(parseInt(resolvedParams.id));
+        if (chaptersResponse.success && chaptersResponse.data) {
+          setChapters(chaptersResponse.data);
         }
       } catch (error) {
         console.error('获取知识详情失败:', error);
@@ -70,7 +113,7 @@ export default function KnowledgeDetailPage({ params }: { params: { id: string }
     };
 
     fetchKnowledge();
-  }, [params.id]);
+  }, [resolvedParams.id]);
 
   const handleChapterClick = async (chapter: Chapter) => {
     if (chapter.quiz_generation_status === 'pending') {
@@ -85,7 +128,7 @@ export default function KnowledgeDetailPage({ params }: { params: { id: string }
     setIsLoadingQuizzes(true);
 
     try {
-      const response = await apiClient.getQuizzes(parseInt(params.id), chapter.id);
+      const response = await apiClient.getQuizzes(parseInt(resolvedParams.id), chapter.id);
       if (response.success && response.data) {
         setChapterQuizzes(response.data);
       } else {
@@ -205,22 +248,337 @@ export default function KnowledgeDetailPage({ params }: { params: { id: string }
         </Button>
       </div>
 
+      {/* 基本信息卡片 */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle className="text-2xl">{knowledge.title}</CardTitle>
-          <div className="text-sm text-muted-foreground mt-2">
-            <span>模型: {knowledge.model.name}</span>
+          <CardTitle className="text-2xl flex items-center gap-2">
+            {knowledge.title}
+            <Badge variant={knowledge.status === 'completed' ? 'default' : 'secondary'}>
+              {knowledge.status === 'completed' ? '已完成' : knowledge.status}
+            </Badge>
+          </CardTitle>
+          <div className="text-sm text-muted-foreground mt-2 flex items-center gap-4">
+            <div className="flex items-center gap-1">
+              <Bot className="w-4 h-4" />
+              <span>{knowledge.model.name}</span>
+              <span className="text-xs">({knowledge.model.provider})</span>
+            </div>
+            <span>创建时间: {new Date(knowledge.created_at).toLocaleString()}</span>
           </div>
         </CardHeader>
-        <CardContent>
-          {knowledge.prompt_used && (
-            <div className="mb-4">
-              <h3 className="font-semibold mb-2">生成大纲的 Prompt:</h3>
-              <p className="text-sm bg-muted p-3 rounded">{knowledge.prompt_used}</p>
-            </div>
-          )}
-        </CardContent>
       </Card>
+
+      {/* 统计信息卡片组 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {/* 总体统计 */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <TrendingUp className="w-4 h-4" />
+              总体统计
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">总耗时</span>
+                <span className="font-medium">{formatTime(knowledge.statistics.total_time_ms)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">总成本</span>
+                <span className="font-medium">{formatCost(knowledge.statistics.total_cost)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">总题数</span>
+                <span className="font-medium">{knowledge.statistics.quiz_count}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Token统计 */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Hash className="w-4 h-4" />
+              Token使用
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">输入/输出</span>
+                <span className="font-medium">
+                  {formatInputOutputTokens(
+                    knowledge.statistics.total_input_tokens,
+                    knowledge.statistics.total_output_tokens
+                  )}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">大纲</span>
+                <span className="font-medium">
+                  {formatInputOutputTokens(
+                    knowledge.statistics.outline_input_tokens,
+                    knowledge.statistics.outline_output_tokens
+                  )}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">题目</span>
+                <span className="font-medium">
+                  {formatInputOutputTokens(
+                    knowledge.statistics.quiz_input_tokens,
+                    knowledge.statistics.quiz_output_tokens
+                  )}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 时间分析 */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Clock className="w-4 h-4" />
+              时间分析
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">大纲生成</span>
+                <span className="font-medium">{formatTime(knowledge.statistics.outline_time_ms)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">题目生成</span>
+                <span className="font-medium">
+                  {formatTime(knowledge.statistics.actual_quiz_time_ms || knowledge.statistics.quiz_time_ms)}
+                </span>
+              </div>
+              {knowledge.statistics.actual_quiz_time_ms && (
+                <div className="text-xs text-muted-foreground">
+                  并行优化: 从{formatTime(knowledge.statistics.quiz_time_ms)}缩短至{formatTime(knowledge.statistics.actual_quiz_time_ms)}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 生成参数 */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Settings className="w-4 h-4" />
+              生成参数
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Temperature</span>
+                <span className="font-medium">{knowledge.parameters.temperature}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Max Tokens</span>
+                <span className="font-medium">{knowledge.parameters.max_tokens}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Top P</span>
+                <span className="font-medium">{knowledge.parameters.top_p}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 章节进度卡片 */}
+      {/* <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="text-lg">章节进度</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-sm text-muted-foreground">
+              完成进度: {knowledge.statistics.completed_chapter_count}/{knowledge.statistics.chapter_count} 
+              ({formatCompletionRate(knowledge.statistics.completion_rate)})
+              {knowledge.statistics.failed_chapter_count > 0 && (
+                <span className="text-red-500 ml-2">
+                  {knowledge.statistics.failed_chapter_count} 失败
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div 
+              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${knowledge.statistics.completion_rate}%` }}
+            />
+            {knowledge.statistics.failed_chapter_count > 0 && (
+              <div 
+                className="bg-red-500 h-2 rounded-full transition-all duration-300 -mt-2"
+                style={{ 
+                  width: `${(knowledge.statistics.failed_chapter_count / knowledge.statistics.chapter_count) * 100}%`,
+                  marginLeft: `${knowledge.statistics.completion_rate}%`
+                }}
+              />
+            )}
+          </div>
+        </CardContent>
+      </Card> */}
+
+      {/* Prompt信息 - 紧凑显示 */}
+      {(knowledge.prompt_used || knowledge.quiz_prompt_used) && (
+        <Card className="mb-6">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              使用的 Prompt
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {/* 大纲生成 Prompt */}
+            {knowledge.prompt_used && (
+              <div className="border rounded-lg p-3 bg-blue-50/30 border-blue-200">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    大纲生成
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2"
+                        >
+                          <Eye className="w-3 h-3" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-4xl max-h-[80vh]">
+                        <DialogHeader>
+                          <DialogTitle>大纲生成 Prompt</DialogTitle>
+                        </DialogHeader>
+                        <div className="overflow-y-auto max-h-[60vh]">
+                          <div className="bg-muted p-4 rounded font-mono text-sm whitespace-pre-wrap">
+                            {knowledge.prompt_used}
+                          </div>
+                        </div>
+                        <div className="flex justify-end">
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              navigator.clipboard.writeText(knowledge.prompt_used!);
+                              toast.success('大纲Prompt已复制');
+                            }}
+                          >
+                            <Copy className="w-4 h-4 mr-2" />
+                            复制完整内容
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2"
+                      onClick={() => {
+                        navigator.clipboard.writeText(knowledge.prompt_used!);
+                        toast.success('大纲Prompt已复制');
+                      }}
+                    >
+                      <Copy className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="text-xs font-mono bg-white/60 p-2 rounded border max-h-20 overflow-y-auto">
+                  {knowledge.prompt_used.length > 200 
+                    ? `${knowledge.prompt_used.substring(0, 200)}...` 
+                    : knowledge.prompt_used
+                  }
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  点击👁️查看完整内容
+                </div>
+              </div>
+            )}
+            
+            {/* 题目生成 Prompt */}
+            {knowledge.quiz_prompt_used && (
+              <div className="border rounded-lg p-3 bg-purple-50/30 border-purple-200">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                    题目生成
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2"
+                        >
+                          <Eye className="w-3 h-3" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-4xl max-h-[80vh]">
+                        <DialogHeader>
+                          <DialogTitle>题目生成 Prompt</DialogTitle>
+                        </DialogHeader>
+                        <div className="overflow-y-auto max-h-[60vh]">
+                          <div className="bg-muted p-4 rounded font-mono text-sm whitespace-pre-wrap">
+                            {knowledge.quiz_prompt_used}
+                          </div>
+                        </div>
+                        <div className="space-y-3">
+                          <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                            💡 题目生成时，<code className="bg-amber-100 px-1 rounded">{'{{chapter_title}}'}</code> 和 <code className="bg-amber-100 px-1 rounded">{'{{chapter_content}}'}</code> 变量会被替换为对应章节的实际内容
+                          </div>
+                          <div className="flex justify-end">
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                navigator.clipboard.writeText(knowledge.quiz_prompt_used!);
+                                toast.success('题目Prompt已复制');
+                              }}
+                            >
+                              <Copy className="w-4 h-4 mr-2" />
+                              复制完整内容
+                            </Button>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2"
+                      onClick={() => {
+                        navigator.clipboard.writeText(knowledge.quiz_prompt_used!);
+                        toast.success('题目Prompt已复制');
+                      }}
+                    >
+                      <Copy className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="text-xs font-mono bg-white/60 p-2 rounded border max-h-20 overflow-y-auto">
+                  {knowledge.quiz_prompt_used.length > 200 
+                    ? `${knowledge.quiz_prompt_used.substring(0, 200)}...` 
+                    : knowledge.quiz_prompt_used
+                  }
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  点击👁️查看完整内容 • 包含动态变量
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -286,6 +644,33 @@ export default function KnowledgeDetailPage({ params }: { params: { id: string }
             </div>
           ) : (
             <div className="space-y-4">
+              {/* 章节知识内容介绍 */}
+              {selectedChapter && selectedChapter.content && (
+                <Card className="bg-blue-50 border-blue-200">
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      📚 知识点介绍
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="prose prose-sm max-w-none">
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                        {selectedChapter.content}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {/* 分隔线 */}
+              {selectedChapter && selectedChapter.content && chapterQuizzes.length > 0 && (
+                <div className="flex items-center gap-4 my-6">
+                  <div className="flex-1 h-px bg-border"></div>
+                  <span className="text-sm text-muted-foreground px-4">📝 练习题目</span>
+                  <div className="flex-1 h-px bg-border"></div>
+                </div>
+              )}
+              
               {chapterQuizzes.map((quiz) => (
                 <Card key={quiz.id}>
                   <CardContent className="pt-6">
@@ -310,9 +695,9 @@ export default function KnowledgeDetailPage({ params }: { params: { id: string }
                         </p>
                       </div>
                     </div>
-                    <div className="text-xs text-muted-foreground">
+                    {/* <div className="text-xs text-muted-foreground">
                       响应时间: {quiz.response_time_ms}ms | 成本: ${quiz.cost}
-                    </div>
+                    </div> */}
                   </CardContent>
                 </Card>
               ))}

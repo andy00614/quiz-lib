@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Clock, DollarSign, AlertCircle, Zap } from 'lucide-react';
+import { Clock, DollarSign, AlertCircle, Zap, Info } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
 import { toast } from 'sonner';
 
@@ -58,8 +58,8 @@ export default function StatisticsPage() {
           // 按日期聚合数据
           const dateGroups = logsResponse.data.reduce((groups: any, log: any) => {
             const date = new Date(log.created_at).toISOString().split('T')[0];
-            if (!groups[date]) {
-              groups[date] = {
+            if (!groups[date as keyof typeof groups]) {
+              groups[date as keyof typeof groups] = {
                 date,
                 responseTime: 0,
                 errorCount: 0,
@@ -68,14 +68,14 @@ export default function StatisticsPage() {
                 count: 0
               };
             }
-            groups[date].responseTime += log.response_time_ms || 0;
+            (groups[date as keyof typeof groups] as any).responseTime += log.response_time_ms || 0;
             if (log.status === 'success') {
-              groups[date].successCount++;
+              (groups[date as keyof typeof groups] as any).successCount++;
             } else {
-              groups[date].errorCount++;
+              (groups[date as keyof typeof groups] as any).errorCount++;
             }
-            groups[date].cost += parseFloat(log.cost || 0);
-            groups[date].count++;
+            (groups[date as keyof typeof groups] as any).cost += parseFloat(log.cost || 0);
+            (groups[date as keyof typeof groups] as any).count++;
             return groups;
           }, {});
 
@@ -118,6 +118,24 @@ export default function StatisticsPage() {
         <p className="text-muted-foreground mt-2">
           查看模型性能、成本和错误率等关键指标
         </p>
+        
+        {/* 数据说明卡片 */}
+        <Card className="mt-4 border-blue-200 bg-blue-50/30">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div className="space-y-2 text-sm">
+                <div className="font-medium text-blue-900">数据说明</div>
+                <div className="space-y-1 text-blue-800">
+                  <div>• <strong>响应时间</strong>：包含LLM调用 + 数据处理的完整时间，并行任务使用中位数计算</div>
+                  <div>• <strong>加权平均</strong>：基于请求量的加权计算，更准确反映实际性能</div>
+                  <div>• <strong>P95响应时间</strong>：95%的请求响应时间都在此值以下</div>
+                  <div>• <strong>并行优化</strong>：批量生成题目时，系统会自动并行处理以提升效率</div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
