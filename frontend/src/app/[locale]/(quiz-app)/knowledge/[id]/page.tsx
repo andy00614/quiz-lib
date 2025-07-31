@@ -78,8 +78,8 @@ interface Knowledge {
   outlines?: any[];
 }
 
-export default async function KnowledgeDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = await params;
+export default function KnowledgeDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const [resolvedParams, setResolvedParams] = useState<{ id: string } | null>(null);
   const router = useRouter();
   const [knowledge, setKnowledge] = useState<Knowledge | null>(null);
   const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
@@ -89,6 +89,12 @@ export default async function KnowledgeDetailPage({ params }: { params: Promise<
   const [generatingChapterId, setGeneratingChapterId] = useState<number | null>(null);
 
   useEffect(() => {
+    params.then(p => setResolvedParams(p));
+  }, [params]);
+
+  useEffect(() => {
+    if (!resolvedParams) return;
+    
     // 从后端获取知识详情（使用列表API获取完整统计信息）
     const fetchKnowledge = async () => {
       try {
@@ -113,7 +119,7 @@ export default async function KnowledgeDetailPage({ params }: { params: Promise<
     };
 
     fetchKnowledge();
-  }, [resolvedParams.id]);
+  }, [resolvedParams?.id]);
 
   const handleChapterClick = async (chapter: Chapter) => {
     if (chapter.quiz_generation_status === 'pending') {
@@ -128,7 +134,7 @@ export default async function KnowledgeDetailPage({ params }: { params: Promise<
     setIsLoadingQuizzes(true);
 
     try {
-      const response = await apiClient.getQuizzes(parseInt(resolvedParams.id), chapter.id);
+      const response = await apiClient.getQuizzes(parseInt(resolvedParams!.id), chapter.id);
       if (response.success && response.data) {
         setChapterQuizzes(response.data);
       } else {
