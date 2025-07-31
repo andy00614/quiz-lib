@@ -9,8 +9,8 @@ class ModelBase(BaseModel):
     name: str = Field(..., max_length=100)
     provider: str = Field(..., max_length=50)
     version: Optional[str] = Field(None, max_length=50)
-    input_price_per_1k: Optional[Decimal] = None
-    output_price_per_1k: Optional[Decimal] = None
+    input_price_per_1m: Optional[Decimal] = None
+    output_price_per_1m: Optional[Decimal] = None
     max_tokens: Optional[int] = None
     is_active: bool = True
 
@@ -25,8 +25,8 @@ class ModelUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=100)
     provider: Optional[str] = Field(None, max_length=50)
     version: Optional[str] = Field(None, max_length=50)
-    input_price_per_1k: Optional[Decimal] = None
-    output_price_per_1k: Optional[Decimal] = None
+    input_price_per_1m: Optional[Decimal] = None
+    output_price_per_1m: Optional[Decimal] = None
     max_tokens: Optional[int] = None
     is_active: Optional[bool] = None
 
@@ -36,6 +36,8 @@ class ModelResponse(ModelBase):
     id: int
     created_at: datetime
     updated_at: datetime
+    input_price_display: Optional[str] = None
+    output_price_display: Optional[str] = None
     
     class Config:
         from_attributes = True

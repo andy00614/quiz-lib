@@ -43,8 +43,10 @@ interface KnowledgeItem {
     completion_rate: number;
     cost_calculation: {
       model_name: string;
-      input_price_per_1k: number;
-      output_price_per_1k: number;
+      input_price_per_1m: number;
+      output_price_per_1m: number;
+      input_price_display?: string;
+      output_price_display?: string;
     };
     last_error?: string;
   };
@@ -159,8 +161,8 @@ export default function KnowledgeListPage() {
                             {formatCostDetails(
                               item.statistics?.total_input_tokens || 0,
                               item.statistics?.total_output_tokens || 0,
-                              item.statistics?.cost_calculation?.input_price_per_1k || 0,
-                              item.statistics?.cost_calculation?.output_price_per_1k || 0
+                              item.statistics?.cost_calculation?.input_price_per_1m || 0,
+                              item.statistics?.cost_calculation?.output_price_per_1m || 0
                             )}
                           </pre>
                         </TooltipContent>

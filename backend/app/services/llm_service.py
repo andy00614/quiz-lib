@@ -257,12 +257,12 @@ class LLMService:
         self,
         input_tokens: int,
         output_tokens: int,
-        input_price_per_1k: float,
-        output_price_per_1k: float
+        input_price_per_1m: float,
+        output_price_per_1m: float
     ) -> float:
         """计算API调用成本"""
-        input_cost = (input_tokens / 1000) * input_price_per_1k
-        output_cost = (output_tokens / 1000) * output_price_per_1k
+        input_cost = (input_tokens / 1000000) * input_price_per_1m
+        output_cost = (output_tokens / 1000000) * output_price_per_1m
         return round(input_cost + output_cost, 6)
 
 

@@ -13,12 +13,20 @@ class Model(Base):
     __tablename__ = "models"
     
     id = Column(Integer, primary_key=True)
-    name = Column(String(100), nullable=False)
+    name = Column(String(100), nullable=False, unique=True)  # API中使用的模型名称
+    display_name = Column(String(100), nullable=False)  # 用户友好的显示名称
     provider = Column(String(50), nullable=False)  # openai, anthropic, google
     version = Column(String(50))
-    input_price_per_1k = Column(DECIMAL(10, 6))  # 每1000 token的输入价格
-    output_price_per_1k = Column(DECIMAL(10, 6))  # 每1000 token的输出价格
+    description = Column(Text)  # 模型描述
+    input_price_per_1m = Column(DECIMAL(10, 2))  # 每1M token的输入价格
+    output_price_per_1m = Column(DECIMAL(10, 2))  # 每1M token的输出价格
+    cached_input_price_per_1m = Column(DECIMAL(10, 2))  # 缓存输入的价格(如果支持)
     max_tokens = Column(Integer)
+    context_window = Column(Integer)  # 上下文窗口大小
+    supports_vision = Column(Boolean, default=False)  # 是否支持图像
+    supports_audio = Column(Boolean, default=False)  # 是否支持音频
+    supports_function_calling = Column(Boolean, default=False)  # 是否支持函数调用
+    release_date = Column(DateTime)  # 模型发布日期
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

@@ -68,8 +68,10 @@ interface Knowledge {
     completion_rate: number;
     cost_calculation: {
       model_name: string;
-      input_price_per_1k: number;
-      output_price_per_1k: number;
+      input_price_per_1m: number;
+      output_price_per_1m: number;
+      input_price_display?: string;
+      output_price_display?: string;
     };
     last_error?: string;
   };

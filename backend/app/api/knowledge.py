@@ -156,8 +156,10 @@ async def list_knowledge(
                 "completion_rate": (completed_chapter_count / total_chapter_count * 100) if total_chapter_count > 0 else 0,
                 "cost_calculation": {
                     "model_name": record.model.name,
-                    "input_price_per_1k": float(record.model.input_price_per_1k or 0),
-                    "output_price_per_1k": float(record.model.output_price_per_1k or 0)
+                    "input_price_per_1m": float(record.model.input_price_per_1m or 0),
+                    "output_price_per_1m": float(record.model.output_price_per_1m or 0),
+                    "input_price_display": f"${float(record.model.input_price_per_1m or 0):.1f}/1M",
+                    "output_price_display": f"${float(record.model.output_price_per_1m or 0):.1f}/1M"
                 },
                 "last_error": last_error_message
             },

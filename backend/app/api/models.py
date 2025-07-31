@@ -14,7 +14,7 @@ from app.schemas.models import (
 router = APIRouter(prefix="/models", tags=["models"])
 
 
-@router.get("/", response_model=List[ModelResponse])
+@router.get("/")
 async def list_models(
     skip: int = 0,
     limit: int = 100,
@@ -31,7 +31,32 @@ async def list_models(
     result = await session.execute(query)
     models = result.scalars().all()
     
-    return models
+    # 格式化响应数据
+    formatted_models = []
+    for model in models:
+        model_data = {
+            "id": model.id,
+            "name": model.name,
+            "display_name": getattr(model, 'display_name', model.name),
+            "provider": model.provider,
+            "version": model.version,
+            "description": model.description,
+            "input_price_per_1m": float(model.input_price_per_1m or 0),
+            "output_price_per_1m": float(model.output_price_per_1m or 0),
+            "input_price_display": f"${float(model.input_price_per_1m or 0):.1f}/1M",
+            "output_price_display": f"${float(model.output_price_per_1m or 0):.1f}/1M",
+            "max_tokens": model.max_tokens,
+            "context_window": getattr(model, 'context_window', None),
+            "supports_vision": getattr(model, 'supports_vision', False),
+            "supports_audio": getattr(model, 'supports_audio', False),
+            "supports_function_calling": getattr(model, 'supports_function_calling', False),
+            "is_active": model.is_active,
+            "created_at": model.created_at.isoformat(),
+            "updated_at": model.updated_at.isoformat()
+        }
+        formatted_models.append(model_data)
+    
+    return formatted_models
 
 
 @router.get("/{model_id}", response_model=ModelResponse)

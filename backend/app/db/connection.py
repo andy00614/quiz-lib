@@ -14,12 +14,16 @@ engine = create_async_engine(
     future=True,
     pool_size=10,
     max_overflow=20,
+    pool_pre_ping=True,  # 预检查连接有效性
+    pool_recycle=3600,   # 1小时后回收连接
     # 为Neon等云数据库添加SSL支持
     connect_args={
         "ssl": "require",
         "server_settings": {
             "application_name": "quiz-lib-backend",
-        }
+        },
+        "prepared_statement_cache_size": 0,  # 禁用预编译语句缓存
+        "statement_cache_size": 0,  # 禁用语句缓存
     }
 )
 

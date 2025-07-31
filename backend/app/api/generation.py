@@ -170,8 +170,8 @@ async def generate_outline(
         cost = llm_service.calculate_cost(
             input_tokens=input_tokens,
             output_tokens=output_tokens,
-            input_price_per_1k=float(model.input_price_per_1k or 0),
-            output_price_per_1k=float(model.output_price_per_1k or 0)
+            input_price_per_1m=float(model.input_price_per_1m or 0),
+            output_price_per_1m=float(model.output_price_per_1m or 0)
         )
         
         # 创建大纲记录
@@ -658,8 +658,8 @@ async def generate_quiz(
         cost = llm_service.calculate_cost(
             input_tokens=input_tokens,
             output_tokens=output_tokens,
-            input_price_per_1k=float(model.input_price_per_1k or 0),
-            output_price_per_1k=float(model.output_price_per_1k or 0)
+            input_price_per_1m=float(model.input_price_per_1m or 0),
+            output_price_per_1m=float(model.output_price_per_1m or 0)
         )
         
         # 创建题目记录

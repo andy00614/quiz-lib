@@ -17,8 +17,8 @@ export function formatCost(cost: number): string {
  * 格式化成本计算详情
  * @param inputTokens - 输入Token数量
  * @param outputTokens - 输出Token数量
- * @param inputPrice - 输入Token单价（每千个）
- * @param outputPrice - 输出Token单价（每千个）
+ * @param inputPrice - 输入Token单价（每百万个）
+ * @param outputPrice - 输出Token单价（每百万个）
  * @returns 成本计算详情字符串
  */
 export function formatCostDetails(
@@ -27,12 +27,12 @@ export function formatCostDetails(
   inputPrice: number, 
   outputPrice: number
 ): string {
-  const inputCost = (inputTokens / 1000) * inputPrice;
-  const outputCost = (outputTokens / 1000) * outputPrice;
+  const inputCost = (inputTokens / 1000000) * inputPrice;
+  const outputCost = (outputTokens / 1000000) * outputPrice;
   const totalCost = inputCost + outputCost;
   
-  return `输入: ${formatTokens(inputTokens)} × $${inputPrice.toFixed(4)}/1K = ${formatCost(inputCost)}\n` +
-         `输出: ${formatTokens(outputTokens)} × $${outputPrice.toFixed(4)}/1K = ${formatCost(outputCost)}\n` +
+  return `输入: ${formatTokens(inputTokens)} × $${inputPrice.toFixed(1)}/1M = ${formatCost(inputCost)}\n` +
+         `输出: ${formatTokens(outputTokens)} × $${outputPrice.toFixed(1)}/1M = ${formatCost(outputCost)}\n` +
          `总计: ${formatCost(totalCost)}`;
 }
 

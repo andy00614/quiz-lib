@@ -22,8 +22,10 @@ interface Model {
   id: number;
   name: string;
   provider: string;
-  input_price_per_1k: number;
-  output_price_per_1k: number;
+  input_price_per_1m: number;
+  output_price_per_1m: number;
+  input_price_display?: string;
+  output_price_display?: string;
 }
 
 interface PromptTemplate {
@@ -569,7 +571,7 @@ export default function NewKnowledgePage() {
                         <div className="flex justify-between items-center w-full">
                           <span>{model.name}</span>
                           <span className="text-xs text-muted-foreground ml-2">
-                            ${model.input_price_per_1k}/${model.output_price_per_1k}
+                            输入: {model.input_price_display || `$${model.input_price_per_1m}/1M`} | 输出: {model.output_price_display || `$${model.output_price_per_1m}/1M`}
                           </span>
                         </div>
                       </SelectItem>

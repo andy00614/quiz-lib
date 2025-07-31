@@ -41,18 +41,18 @@ app.add_middleware(
 # 配置CORS
 app.add_middleware(
     CORSMiddleware,
-    # allow_origins=settings.ALLOWED_ORIGINS,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "*"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # 添加自定义中间件
 app.add_middleware(LoggingMiddleware)
 app.middleware("http")(error_handler_middleware)
 
-# 添加中间件来处理代理头部
+# 添加中间件来处理代理头部和CORS
 @app.middleware("http")
 async def proxy_headers_middleware(request, call_next):
     # 信任来自反向代理的头部
@@ -62,6 +62,19 @@ async def proxy_headers_middleware(request, call_next):
         request.scope["server"] = (request.headers["x-forwarded-host"], request.scope["server"][1])
     
     response = await call_next(request)
+    
+    # 确保所有响应都有CORS头部
+    if "access-control-allow-origin" not in response.headers:
+        origin = request.headers.get("origin")
+        if origin in ["http://localhost:3000", "http://127.0.0.1:3000"]:
+            response.headers["access-control-allow-origin"] = origin
+        else:
+            response.headers["access-control-allow-origin"] = "*"
+    
+    response.headers["access-control-allow-credentials"] = "true"
+    response.headers["access-control-allow-methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["access-control-allow-headers"] = "*"
+    
     return response
 
 # 注册路由
