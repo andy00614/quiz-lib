@@ -299,8 +299,8 @@ async def generate_chapter_quiz(
                     cost = llm_service.calculate_cost(
                         input_tokens=input_tokens,
                         output_tokens=output_tokens,
-                        input_price_per_1k=float(model.input_price_per_1k or 0),
-                        output_price_per_1k=float(model.output_price_per_1k or 0)
+                        input_price_per_1m=float(model.input_price_per_1m or 0),
+                        output_price_per_1m=float(model.output_price_per_1m or 0)
                     )
                     
                     # 创建题目记录
@@ -472,24 +472,62 @@ async def generate_batch_quiz(
     template = template_result.scalar_one_or_none()
     default_prompt = template.content if template else "请根据章节内容生成选择题。"
     
-    # 并行为所有章节生成题目
-    tasks = [
-        generate_chapter_quiz(
-            chapter_id=chapter.id,
-            model=model,
-            knowledge=knowledge,
-            default_prompt=default_prompt,
-            knowledge_id=knowledge_id,
-            background_tasks=background_tasks
-        )
-        for chapter in chapters
-    ]
-    
     # 记录开始时间
     start_time = time.time()
     
-    # 并行执行所有任务
-    chapter_results = await asyncio.gather(*tasks, return_exceptions=True)
+    # 检查是否是Gemini模型，需要特殊处理
+    is_gemini_model = 'gemini' in model.name.lower()
+    
+    if is_gemini_model:
+        # Gemini模型：顺序执行避免配额限制，并调整max_tokens
+        logger.info(f"Using sequential execution for Gemini model: {model.name}")
+        chapter_results = []
+        
+        # 为Gemini调整知识记录的max_tokens
+        original_max_tokens = knowledge.max_tokens
+        if knowledge.max_tokens < 4000:
+            knowledge.max_tokens = 6000
+            logger.info(f"Adjusted max_tokens from {original_max_tokens} to {knowledge.max_tokens} for Gemini")
+        
+        for chapter in chapters:
+            try:
+                # 顺序执行每个章节
+                result = await generate_chapter_quiz(
+                    chapter_id=chapter.id,
+                    model=model,
+                    knowledge=knowledge,
+                    default_prompt=default_prompt,
+                    knowledge_id=knowledge_id,
+                    background_tasks=background_tasks
+                )
+                chapter_results.append(result)
+                
+                # 在Gemini请求之间添加短暂延迟，避免速率限制
+                await asyncio.sleep(0.5)
+                
+            except Exception as e:
+                chapter_results.append(e)
+        
+        # 恢复原始max_tokens设置
+        knowledge.max_tokens = original_max_tokens
+        
+    else:
+        # 其他模型：并行执行
+        logger.info(f"Using parallel execution for model: {model.name}")
+        tasks = [
+            generate_chapter_quiz(
+                chapter_id=chapter.id,
+                model=model,
+                knowledge=knowledge,
+                default_prompt=default_prompt,
+                knowledge_id=knowledge_id,
+                background_tasks=background_tasks
+            )
+            for chapter in chapters
+        ]
+        
+        # 并行执行所有任务
+        chapter_results = await asyncio.gather(*tasks, return_exceptions=True)
     
     # 记录结束时间并计算实际耗时
     end_time = time.time()

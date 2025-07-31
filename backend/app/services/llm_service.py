@@ -175,24 +175,83 @@ class LLMService:
                 )
                 return response
             
-            # 在线程池中运行同步代码
+            # 在线程池中运行同步代码，带重试机制
             loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(None, _sync_generate)
             
-            return {
-                "content": response.text,
-                "model": model,
-                "usage": {
-                    "prompt_tokens": 0,  # Gemini API不提供token统计
-                    "completion_tokens": 0,
-                    "total_tokens": 0
-                },
-                "finish_reason": "stop"
-            }
+            # 处理配额限制的重试机制
+            max_retries = 3
+            base_delay = 1  # 基础延迟1秒
+            
+            for attempt in range(max_retries):
+                try:
+                    response = await loop.run_in_executor(None, _sync_generate)
+                    
+                    # 估算token数量（粗略估算：1个中文字符约等于2个token，1个英文单词约等于1.3个token）
+                    prompt_tokens = self._estimate_tokens(prompt)
+                    completion_tokens = self._estimate_tokens(response.text)
+                    
+                    return {
+                        "content": response.text,
+                        "model": model,
+                        "usage": {
+                            "prompt_tokens": prompt_tokens,
+                            "completion_tokens": completion_tokens,
+                            "total_tokens": prompt_tokens + completion_tokens
+                        },
+                        "finish_reason": "stop"
+                    }
+                    
+                except Exception as e:
+                    error_str = str(e)
+                    
+                    # 检查是否是配额限制错误
+                    if "429" in error_str or "quota" in error_str.lower() or "rate limit" in error_str.lower():
+                        if attempt < max_retries - 1:
+                            # 配额限制时使用指数退避
+                            delay = base_delay * (2 ** attempt)
+                            logger.warning(f"Gemini API配额限制，{delay}秒后重试 (尝试 {attempt + 1}/{max_retries})")
+                            await asyncio.sleep(delay)
+                            continue
+                        else:
+                            logger.error(f"Gemini API配额限制，已达到最大重试次数")
+                            raise Exception("Gemini API配额已用完，请稍后重试")
+                    
+                    # 其他错误直接抛出
+                    raise e
         
         except Exception as e:
             logger.error(f"Google generation error: {e}")
             raise
+    
+    def _estimate_tokens(self, text: str) -> int:
+        """估算文本的token数量"""
+        if not text:
+            return 0
+        
+        # 粗略估算：
+        # - 英文：平均每个单词1.3个token
+        # - 中文：每个字符约2个token
+        # - 标点符号和空格：1个token
+        
+        import re
+        
+        # 分离中文字符
+        chinese_chars = len(re.findall(r'[\u4e00-\u9fff]', text))
+        
+        # 分离英文单词
+        english_words = len(re.findall(r'\b[a-zA-Z]+\b', text))
+        
+        # 其他字符（数字、标点、空格等）
+        other_chars = len(text) - chinese_chars - sum(len(word) for word in re.findall(r'\b[a-zA-Z]+\b', text))
+        
+        # 估算token数
+        estimated_tokens = int(
+            chinese_chars * 2 +           # 中文字符
+            english_words * 1.3 +         # 英文单词
+            other_chars * 0.5             # 其他字符
+        )
+        
+        return max(1, estimated_tokens)  # 至少1个token
     
     def parse_json_response(self, content: str) -> Optional[Dict[str, Any]]:
         """解析JSON响应"""
@@ -212,7 +271,13 @@ class LLMService:
                 try:
                     return json.loads(json_content)
                 except json.JSONDecodeError:
-                    pass
+                    # 如果markdown中的JSON也被截断，尝试修复
+                    fixed_content = self._fix_truncated_json(json_content)
+                    if fixed_content:
+                        try:
+                            return json.loads(fixed_content)
+                        except json.JSONDecodeError:
+                            pass
             
             # 尝试提取JSON内容（从第一个{到最后一个}）
             start_idx = content.find('{')
@@ -228,6 +293,14 @@ class LLMService:
                     return json.loads(json_content)
                 except json.JSONDecodeError as e:
                     logger.error(f"JSON decode error: {e}, content: {json_content[:200]}...")
+                    
+                    # 尝试修复被截断的JSON
+                    fixed_content = self._fix_truncated_json(json_content)
+                    if fixed_content:
+                        try:
+                            return json.loads(fixed_content)
+                        except json.JSONDecodeError:
+                            logger.error(f"Failed to fix truncated JSON")
             
             logger.error(f"Failed to parse JSON response: {content[:200]}...")
             return None
@@ -252,6 +325,99 @@ class LLMService:
             json_content += ']' * (open_brackets - close_brackets)
             
         return json_content
+    
+    def _fix_truncated_json(self, json_content: str) -> Optional[str]:
+        """尝试修复被截断的JSON，特别是题目数组"""
+        try:
+            # 查找quizzes数组的开始位置
+            import re
+            
+            # 尝试找到完整的题目项
+            quiz_pattern = r'\{\s*"question_number"\s*:\s*\d+,\s*"question"\s*:\s*"[^"]*",\s*"options"\s*:\s*\{[^}]*\},\s*"correct_answer"\s*:\s*"[A-D]",\s*"explanation"\s*:\s*"[^"]*"\s*\}'
+            complete_quizzes = re.findall(quiz_pattern, json_content, re.DOTALL)
+            
+            if complete_quizzes:
+                # 构建新的JSON结构，只包含完整的题目
+                quizzes_json = '[' + ','.join(complete_quizzes) + ']'
+                return f'{{"quizzes": {quizzes_json}}}'
+            
+            # 如果正则表达式方法失败，尝试按行解析
+            lines = json_content.split('\n')
+            in_quiz_array = False
+            quiz_items = []
+            current_quiz = {}
+            current_field = None
+            brace_count = 0
+            
+            for line in lines:
+                line = line.strip()
+                
+                # 检测是否进入quizzes数组
+                if '"quizzes"' in line and '[' in line:
+                    in_quiz_array = True
+                    continue
+                
+                if not in_quiz_array:
+                    continue
+                
+                # 计算大括号层级
+                brace_count += line.count('{') - line.count('}')
+                
+                # 如果遇到新的题目开始
+                if line.startswith('{') and brace_count >= 1:
+                    if current_quiz:  # 保存前一个题目
+                        quiz_items.append(current_quiz)
+                    current_quiz = {}
+                
+                # 解析字段
+                if ':' in line and brace_count >= 1:
+                    if '"question_number"' in line:
+                        try:
+                            current_quiz['question_number'] = int(re.search(r':\s*(\d+)', line).group(1))
+                        except:
+                            pass
+                    elif '"question"' in line:
+                        match = re.search(r':\s*"([^"]*)"', line)
+                        if match:
+                            current_quiz['question'] = match.group(1)
+                    elif '"correct_answer"' in line:
+                        match = re.search(r':\s*"([A-D])"', line)
+                        if match:
+                            current_quiz['correct_answer'] = match.group(1)
+                    elif '"explanation"' in line:
+                        match = re.search(r':\s*"([^"]*)"', line)
+                        if match:
+                            current_quiz['explanation'] = match.group(1)
+                
+                # 如果遇到题目结束
+                if line.endswith('}') and brace_count == 1:
+                    if current_quiz and len(current_quiz) >= 3:  # 至少有基本字段
+                        quiz_items.append(current_quiz)
+                    current_quiz = {}
+            
+            # 添加最后一个题目
+            if current_quiz and len(current_quiz) >= 3:
+                quiz_items.append(current_quiz)
+            
+            # 如果找到了一些完整的题目，构建新的JSON
+            if quiz_items:
+                # 为每个题目添加默认选项（如果缺失）
+                for quiz in quiz_items:
+                    if 'options' not in quiz:
+                        quiz['options'] = {
+                            'A': '选项A',
+                            'B': '选项B', 
+                            'C': '选项C',
+                            'D': '选项D'
+                        }
+                
+                return json.dumps({"quizzes": quiz_items}, ensure_ascii=False)
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Failed to fix truncated JSON: {e}")
+            return None
     
     def calculate_cost(
         self,

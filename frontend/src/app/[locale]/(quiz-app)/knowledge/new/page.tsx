@@ -77,6 +77,20 @@ export default function NewKnowledgePage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [useTemplate, setUseTemplate] = useState(true);
 
+  // 当选择的模型变化时，调整max_tokens默认值
+  useEffect(() => {
+    if (selectedModel && models.length > 0) {
+      const selectedModelData = models.find(m => m.id.toString() === selectedModel);
+      if (selectedModelData && selectedModelData.name.toLowerCase().includes('gemini')) {
+        // Gemini模型需要更多tokens来生成完整的题目
+        setMaxTokens([6000]);
+      } else {
+        // 其他模型使用默认值
+        setMaxTokens([2000]);
+      }
+    }
+  }, [selectedModel, models]);
+
   useEffect(() => {
     // 从后端获取模型列表和模板列表
     const fetchData = async () => {
