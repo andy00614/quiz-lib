@@ -9,6 +9,16 @@ export const auth = betterAuth({
     provider: 'pg',
   }),
   baseURL: env.NEXT_PUBLIC_APP_URL,
+  cors: {
+    enabled: true,
+    origins: [
+      env.NEXT_PUBLIC_APP_URL,
+      'https://quiz-lib-frontend.vercel.app',
+      'http://localhost:3000',
+      'http://localhost:5173',
+    ],
+    credentials: true,
+  },
   emailAndPassword: {
     enabled: true,
   },
