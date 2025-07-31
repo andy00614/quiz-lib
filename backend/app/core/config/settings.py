@@ -16,7 +16,8 @@ class Settings(BaseSettings):
     DB_ECHO: bool = False
     
     # CORS配置
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000","https://quiz-lib-frontend.vercel.app"]
+    # ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000","https://quiz-lib-frontend.vercel.app"]
+    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000", "https://quiz-lib-frontend.vercel.app", "https://quiz-lib-frontend.vercel.app/"]
     
     # JWT配置
     SECRET_KEY: str = "your-secret-key-here"
