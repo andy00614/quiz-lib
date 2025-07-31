@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from contextlib import asynccontextmanager
 import structlog
 
@@ -31,6 +32,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# 添加受信任的主机中间件
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=["quiz-lib-production.up.railway.app", "*.railway.app", "localhost", "127.0.0.1"]
+)
+
 # 配置CORS
 app.add_middleware(
     CORSMiddleware,
@@ -44,6 +51,18 @@ app.add_middleware(
 # 添加自定义中间件
 app.add_middleware(LoggingMiddleware)
 app.middleware("http")(error_handler_middleware)
+
+# 添加中间件来处理代理头部
+@app.middleware("http")
+async def proxy_headers_middleware(request, call_next):
+    # 信任来自反向代理的头部
+    if "x-forwarded-proto" in request.headers:
+        request.scope["scheme"] = request.headers["x-forwarded-proto"]
+    if "x-forwarded-host" in request.headers:
+        request.scope["server"] = (request.headers["x-forwarded-host"], request.scope["server"][1])
+    
+    response = await call_next(request)
+    return response
 
 # 注册路由
 app.include_router(models.router, prefix="/api/v1")
