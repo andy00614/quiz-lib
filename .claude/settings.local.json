@@ -32,7 +32,8 @@
       "Bash(pip uninstall:*)",
       "Bash(git rm:*)",
       "Bash(grep:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(chmod:*)"
     ],
     "deny": []
   }
