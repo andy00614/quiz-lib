@@ -92,26 +92,31 @@ async def list_knowledge(
                     chapter_creation_times.append(first_quiz.created_at)
                     if first_quiz.response_time_ms:
                         chapter_response_times.append(first_quiz.response_time_ms)
+                        # 每个章节只累加一次响应时间（因为章节内的题目是批量生成的）
+                        total_quiz_time += first_quiz.response_time_ms
                 
+                # 累加成本和token（每个题目都要计算）
                 for quiz in chapter.quizzes:
                     total_quiz_cost += float(quiz.cost or 0)
                     quiz_input_tokens += quiz.input_tokens or 0
                     quiz_output_tokens += quiz.output_tokens or 0
-                    total_quiz_time += quiz.response_time_ms or 0
                     total_quiz_count += 1
             
-            # 判断是否为并行生成：检查章节创建时间是否相近
+            # 判断是否为并行生成：检查相邻章节创建时间间隔
             if len(outline.chapters) > 1 and len(chapter_creation_times) > 1:
-                # 计算创建时间的最大差异（秒）
-                time_diffs = []
-                for i in range(1, len(chapter_creation_times)):
-                    diff = abs((chapter_creation_times[i] - chapter_creation_times[0]).total_seconds())
-                    time_diffs.append(diff)
+                # 按时间排序
+                sorted_times = sorted(chapter_creation_times)
                 
-                max_time_diff = max(time_diffs) if time_diffs else 0
+                # 计算相邻章节的时间间隔（秒）
+                time_intervals = []
+                for i in range(1, len(sorted_times)):
+                    interval = (sorted_times[i] - sorted_times[i-1]).total_seconds()
+                    time_intervals.append(interval)
                 
-                # 如果所有章节的题目在60秒内创建，认为是并行生成
-                if max_time_diff <= 60 and chapter_response_times:
+                max_interval = max(time_intervals) if time_intervals else 0
+                
+                # 如果所有相邻章节的间隔都在60秒内，认为是并行生成
+                if max_interval <= 60 and chapter_response_times:
                     is_parallel_generation = True
                     # 并行生成时，实际时间应该是最慢的那个章节的时间
                     actual_quiz_generation_time = max(chapter_response_times)
