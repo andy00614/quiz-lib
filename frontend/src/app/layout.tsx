@@ -64,7 +64,7 @@ export default async function RootLayout({
   return (
     <html
       lang={routing.defaultLocale}
-      className={`${geist.variable} ${geistMono.variable} antialiased`}
+      className={`${geist.variable} ${geistMono.variable} antialiased light`}
       suppressHydrationWarning
     >
       <body>{children}</body>

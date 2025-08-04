@@ -1,11 +1,11 @@
 import type { ThemeConfig } from "@/types";
 
 export const themeConfig: ThemeConfig = {
-  // Default theme
-  defaultTheme: 'system',
+  // Default theme - forced to light
+  defaultTheme: 'light',
   
-  // Available themes
-  themes: ['light', 'dark', 'system'] as const,
+  // Available themes - only light theme
+  themes: ['light'] as const,
   
   // Color palette
   colors: {

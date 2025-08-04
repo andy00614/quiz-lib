@@ -17,7 +17,6 @@ import {
 } from '@/components/ui/navigation-menu';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { LanguageSwitcher } from '@/components/widget/language-switcher';
-import { ThemeToggle } from '@/components/widget/theme-toggle';
 import { UserAvatarMenu } from '@/components/widget/user-avatar-menu';
 import { Book, Menu, Sunset, Trees, Zap } from 'lucide-react';
 import Link from 'next/link';
@@ -247,7 +246,6 @@ const Navbar = ({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <ThemeToggle />
             <LanguageSwitcher />
             <DesktopAuthDisplay
               loginText={auth.login.text}
@@ -286,7 +284,6 @@ const Navbar = ({
                     {menuItems.map((item) => renderMobileMenuItem(item))}
                   </Accordion>
                   <div className="flex items-center gap-2">
-                    <ThemeToggle />
                     <LanguageSwitcher />
                   </div>
                   <MobileAuthDisplay
