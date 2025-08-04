@@ -43,11 +43,26 @@ export class ApiClient {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || `HTTP error! status: ${response.status}`);
+        try {
+          const error = await response.json();
+          throw new Error(error.detail || `HTTP error! status: ${response.status}`);
+        } catch (jsonError) {
+          // 如果无法解析 JSON，使用默认错误消息
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
       }
 
-      const data = await response.json();
+      // 检查是否有响应体（204 状态码通常没有响应体）
+      let data = null;
+      if (response.status !== 204) {
+        try {
+          data = await response.json();
+        } catch (jsonError) {
+          // 如果解析 JSON 失败，设为 null
+          data = null;
+        }
+      }
+      
       return { data, success: true };
     } catch (error) {
       console.error('API request failed:', error);
