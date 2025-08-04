@@ -49,7 +49,7 @@ class PromptTemplateBase(BaseModel):
     name: str = Field(..., max_length=100)
     content: str
     is_default: bool = False
-    variables: Optional[List[str]] = None
+    variables: Optional[List[Dict[str, Any]]] = None  # 支持对象数组
 
 
 class PromptTemplateCreate(PromptTemplateBase):
@@ -62,7 +62,7 @@ class PromptTemplateUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=100)
     content: Optional[str] = None
     is_default: Optional[bool] = None
-    variables: Optional[List[str]] = None
+    variables: Optional[List[Dict[str, Any]]] = None  # 支持对象数组
 
 
 class PromptTemplateResponse(PromptTemplateBase):

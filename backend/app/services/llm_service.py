@@ -37,6 +37,16 @@ class LLMService:
         """生成内容"""
         start_time = time.time()
         
+        # 记录API调用开始
+        logger.info(
+            "llm_api_call_started",
+            model=model,
+            provider=self._get_provider(model),
+            temperature=temperature,
+            max_tokens=max_tokens,
+            prompt_length=len(prompt)
+        )
+        
         try:
             provider = self._get_provider(model)
             
@@ -56,14 +66,34 @@ class LLMService:
                 raise ValueError(f"不支持的模型: {model}")
             
             # 添加响应时间
-            result["response_time_ms"] = int((time.time() - start_time) * 1000)
+            response_time_ms = int((time.time() - start_time) * 1000)
+            result["response_time_ms"] = response_time_ms
             result["success"] = True
+            
+            # 记录API调用成功
+            logger.info(
+                "llm_api_call_completed",
+                model=model,
+                provider=provider,
+                response_time_ms=response_time_ms,
+                prompt_tokens=result.get("usage", {}).get("prompt_tokens", 0),
+                completion_tokens=result.get("usage", {}).get("completion_tokens", 0),
+                total_tokens=result.get("usage", {}).get("total_tokens", 0)
+            )
             
             return result
             
         except Exception as e:
             response_time = int((time.time() - start_time) * 1000)
-            logger.error(f"Generation error: {e}")
+            
+            # 记录API调用失败
+            logger.error(
+                "llm_api_call_failed",
+                model=model,
+                provider=self._get_provider(model),
+                error=str(e),
+                response_time_ms=response_time
+            )
             
             return {
                 "success": False,
@@ -90,6 +120,8 @@ class LLMService:
     ) -> Dict[str, Any]:
         """使用OpenAI生成"""
         try:
+            logger.debug("openai_api_request", model=model, max_tokens=max_tokens)
+            
             response = await self.openai_client.chat.completions.create(
                 model=model,
                 messages=[{"role": "user", "content": prompt}],
@@ -104,19 +136,29 @@ class LLMService:
                 pass
             else:
                 content = response.choices[0].message.content
+                usage = {
+                    "prompt_tokens": response.usage.prompt_tokens,
+                    "completion_tokens": response.usage.completion_tokens,
+                    "total_tokens": response.usage.total_tokens
+                }
+                
+                logger.debug(
+                    "openai_api_response",
+                    model=model,
+                    prompt_tokens=usage["prompt_tokens"],
+                    completion_tokens=usage["completion_tokens"],
+                    finish_reason=response.choices[0].finish_reason
+                )
+                
                 return {
                     "content": content,
                     "model": model,
-                    "usage": {
-                        "prompt_tokens": response.usage.prompt_tokens,
-                        "completion_tokens": response.usage.completion_tokens,
-                        "total_tokens": response.usage.total_tokens
-                    },
+                    "usage": usage,
                     "finish_reason": response.choices[0].finish_reason
                 }
         
         except Exception as e:
-            logger.error(f"OpenAI generation error: {e}")
+            logger.error("openai_api_error", error=str(e), model=model)
             raise
     
     async def _generate_anthropic(
@@ -125,6 +167,8 @@ class LLMService:
     ) -> Dict[str, Any]:
         """使用Anthropic生成"""
         try:
+            logger.debug("anthropic_api_request", model=model, max_tokens=max_tokens)
+            
             message = await self.anthropic_client.messages.create(
                 model=model,
                 messages=[{"role": "user", "content": prompt}],
@@ -139,19 +183,29 @@ class LLMService:
                 pass
             else:
                 content = message.content[0].text if message.content else ""
+                usage = {
+                    "prompt_tokens": message.usage.input_tokens,
+                    "completion_tokens": message.usage.output_tokens,
+                    "total_tokens": message.usage.input_tokens + message.usage.output_tokens
+                }
+                
+                logger.debug(
+                    "anthropic_api_response",
+                    model=model,
+                    input_tokens=usage["prompt_tokens"],
+                    output_tokens=usage["completion_tokens"],
+                    stop_reason=message.stop_reason
+                )
+                
                 return {
                     "content": content,
                     "model": model,
-                    "usage": {
-                        "prompt_tokens": message.usage.input_tokens,
-                        "completion_tokens": message.usage.output_tokens,
-                        "total_tokens": message.usage.input_tokens + message.usage.output_tokens
-                    },
+                    "usage": usage,
                     "finish_reason": message.stop_reason
                 }
         
         except Exception as e:
-            logger.error(f"Anthropic generation error: {e}")
+            logger.error("anthropic_api_error", error=str(e), model=model)
             raise
     
     async def _generate_google(
@@ -184,11 +238,20 @@ class LLMService:
             
             for attempt in range(max_retries):
                 try:
+                    logger.debug("google_api_request", model=model, max_tokens=max_tokens, attempt=attempt+1)
+                    
                     response = await loop.run_in_executor(None, _sync_generate)
                     
                     # 估算token数量（粗略估算：1个中文字符约等于2个token，1个英文单词约等于1.3个token）
                     prompt_tokens = self._estimate_tokens(prompt)
                     completion_tokens = self._estimate_tokens(response.text)
+                    
+                    logger.debug(
+                        "google_api_response",
+                        model=model,
+                        prompt_tokens=prompt_tokens,
+                        completion_tokens=completion_tokens
+                    )
                     
                     return {
                         "content": response.text,
@@ -209,18 +272,29 @@ class LLMService:
                         if attempt < max_retries - 1:
                             # 配额限制时使用指数退避
                             delay = base_delay * (2 ** attempt)
-                            logger.warning(f"Gemini API配额限制，{delay}秒后重试 (尝试 {attempt + 1}/{max_retries})")
+                            logger.warning(
+                                "google_api_rate_limit",
+                                model=model,
+                                delay_seconds=delay,
+                                attempt=attempt + 1,
+                                max_retries=max_retries
+                            )
                             await asyncio.sleep(delay)
                             continue
                         else:
-                            logger.error(f"Gemini API配额限制，已达到最大重试次数")
+                            logger.error(
+                                "google_api_rate_limit_exceeded",
+                                model=model,
+                                max_retries=max_retries
+                            )
                             raise Exception("Gemini API配额已用完，请稍后重试")
                     
                     # 其他错误直接抛出
+                    logger.error("google_api_error", error=str(e), model=model, attempt=attempt+1)
                     raise e
         
         except Exception as e:
-            logger.error(f"Google generation error: {e}")
+            logger.error("google_generation_error", error=str(e), model=model)
             raise
     
     def _estimate_tokens(self, text: str) -> int:

@@ -17,6 +17,7 @@ interface Chapter {
   title: string;
   content: string;
   quiz_generation_status: 'pending' | 'generating' | 'completed' | 'failed';
+  last_error?: string;
 }
 
 interface Quiz {
@@ -182,21 +183,23 @@ export default function KnowledgeDetailPage({ params }: { params: Promise<{ id: 
         // 自动打开题目列表
         handleChapterClick({ ...chapter, quiz_generation_status: 'completed' });
       } else {
-        toast.error('题目生成失败');
-        // 生成失败时，恢复为待生成状态
+        const errorMessage = response.error || '题目生成失败';
+        toast.error(errorMessage);
+        // 生成失败时，恢复为待生成状态，并保存错误信息
         setChapters(chapters.map(c => 
           c.id === chapter.id 
-            ? { ...c, quiz_generation_status: 'failed' as const }
+            ? { ...c, quiz_generation_status: 'failed' as const, last_error: errorMessage }
             : c
         ));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('生成题目失败:', error);
-      toast.error('生成题目失败');
-      // 生成失败时，恢复为待生成状态
+      const errorMessage = error.message || '生成题目失败';
+      toast.error(errorMessage);
+      // 生成失败时，恢复为待生成状态，并保存错误信息
       setChapters(chapters.map(c => 
         c.id === chapter.id 
-          ? { ...c, quiz_generation_status: 'failed' as const }
+          ? { ...c, quiz_generation_status: 'failed' as const, last_error: errorMessage }
           : c
       ));
     } finally {
@@ -607,13 +610,21 @@ export default function KnowledgeDetailPage({ params }: { params: Promise<{ id: 
                 onClick={() => handleChapterClick(chapter)}
               >
                 <div className="flex justify-between items-center">
-                  <div>
-                    <h3 className="font-semibold">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold line-clamp-1">
                       第{chapter.chapter_number}章: {chapter.title}
                     </h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {chapter.content}
+                    <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                      {chapter.content.length > 100 
+                        ? `${chapter.content.substring(0, 100)}...` 
+                        : chapter.content}
                     </p>
+                    {chapter.quiz_generation_status === 'failed' && chapter.last_error && (
+                      <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        错误: {chapter.last_error}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     {getStatusBadge(chapter.quiz_generation_status)}
