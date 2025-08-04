@@ -9,7 +9,8 @@ import {
   Settings, 
   BarChart3, 
   FileText, 
-  Plus 
+  Plus,
+  TrendingUp
 } from 'lucide-react';
 
 const navItems = [
@@ -32,6 +33,11 @@ const navItems = [
     href: '/statistics',
     label: '统计数据',
     icon: BarChart3,
+  },
+  {
+    href: '/analysis-report',
+    label: '分析报告',
+    icon: TrendingUp,
   },
   {
     href: '/logs',

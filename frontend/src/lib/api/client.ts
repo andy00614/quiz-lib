@@ -238,6 +238,10 @@ export class ApiClient {
     return this.request<any[]>(`/analytics/models/${modelId}/performance`);
   }
 
+  async getAnalysisReport(days: number = 30) {
+    return this.request<any>(`/analytics/analysis-report?days=${days}`);
+  }
+
   // Chapters API
   async getChapters(knowledgeId: number) {
     return this.request<any[]>(`/knowledge/${knowledgeId}/chapters`);
