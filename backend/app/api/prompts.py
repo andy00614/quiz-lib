@@ -303,18 +303,21 @@ async def set_default_template(
             detail="Prompt template not found"
         )
     
-    # 取消同类型的其他默认模板
-    await session.execute(
-        PromptTemplate.__table__.update()
-        .where(
-            PromptTemplate.type == template.type,
-            PromptTemplate.id != template_id
+    if template.is_default:
+        # 如果当前是默认模板，取消默认
+        template.is_default = False
+    else:
+        # 如果当前不是默认模板，设置为默认并取消同类型的其他默认模板
+        await session.execute(
+            PromptTemplate.__table__.update()
+            .where(
+                PromptTemplate.type == template.type,
+                PromptTemplate.id != template_id
+            )
+            .values(is_default=False)
         )
-        .values(is_default=False)
-    )
+        template.is_default = True
     
-    # 设置当前模板为默认
-    template.is_default = True
     await session.commit()
     await session.refresh(template)
     

@@ -179,21 +179,26 @@ export default function PromptConfigPage() {
 
   // 删除模板
   const handleDeleteTemplate = async (templateId: number) => {
-    if (!confirm('确定要删除这个模板吗？')) return;
+    if (!confirm('确定要删除这个模板吗？此操作不可恢复。')) return;
     
     try {
       const response = await apiClient.deletePromptTemplate(templateId);
       if (response.success) {
         toast.success('模板删除成功！');
+        
+        // 立即更新模板列表
+        setTemplates(prevTemplates => prevTemplates.filter(t => t.id !== templateId));
+        
         // 如果删除的是当前选中的模板，清空选中状态
         if (selectedTemplate && selectedTemplate.id === templateId) {
           setSelectedTemplate(null);
         }
-        fetchTemplates();
       }
     } catch (error) {
       console.error('删除模板失败:', error);
       toast.error('删除模板失败');
+      // 删除失败时重新获取列表
+      fetchTemplates();
     }
   };
 
@@ -202,12 +207,30 @@ export default function PromptConfigPage() {
     try {
       const response = await apiClient.setDefaultTemplate(templateId);
       if (response.success) {
-        toast.success('设置默认模板成功！');
-        fetchTemplates();
+        const isSettingDefault = !selectedTemplate?.is_default;
+        toast.success(isSettingDefault ? '设置默认模板成功！' : '取消默认模板成功！');
+        
+        // 立即更新模板列表状态
+        setTemplates(prevTemplates => 
+          prevTemplates.map(template => ({
+            ...template,
+            is_default: template.id === templateId ? !template.is_default : false
+          }))
+        );
+        
+        // 更新选中的模板状态
+        if (selectedTemplate && selectedTemplate.id === templateId) {
+          setSelectedTemplate({
+            ...selectedTemplate,
+            is_default: !selectedTemplate.is_default
+          });
+        }
       }
     } catch (error) {
       console.error('设置默认模板失败:', error);
       toast.error('设置默认模板失败');
+      // 失败时重新获取列表
+      fetchTemplates();
     }
   };
 
@@ -332,20 +355,6 @@ export default function PromptConfigPage() {
                         >
                           <Edit2 className="w-4 h-4 mr-1" />
                           编辑
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const newTemplate = { ...selectedTemplate, id: 0, name: `${selectedTemplate.name} (复制)` };
-                            setEditingTemplate(newTemplate);
-                            setIsCreating(true);
-                            // 立即解析变量
-                            parseTemplateContent(selectedTemplate.content);
-                          }}
-                        >
-                          <Copy className="w-4 h-4 mr-1" />
-                          复制
                         </Button>
                         {!selectedTemplate.is_default && (
                           <Button
