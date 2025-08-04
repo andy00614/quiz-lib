@@ -163,6 +163,10 @@ class ChapterResponse(ChapterBase):
     id: int
     outline_id: int
     created_at: datetime
+    quiz_generation_time_ms: Optional[int] = None  # 题目生成时间（毫秒）
+    quiz_cost: Optional[float] = None  # 题目生成成本
+    quiz_count: Optional[int] = None  # 生成的题目数量
+    last_error: Optional[str] = None  # 最后的错误信息
     
     class Config:
         from_attributes = True

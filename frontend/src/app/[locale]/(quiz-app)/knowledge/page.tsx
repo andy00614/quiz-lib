@@ -82,7 +82,7 @@ export default function KnowledgeListPage() {
     return <span className={colorClass}>{text}</span>;
   };
 
-  console.log(knowledgeList);
+  console.log('knowledgeList', knowledgeList)
 
   return (
     <div className="container mx-auto max-w-6xl p-6">
@@ -93,7 +93,6 @@ export default function KnowledgeListPage() {
           创建新知识
         </Button>
       </div>
-
       <TooltipProvider>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {knowledgeList.map((item) => (

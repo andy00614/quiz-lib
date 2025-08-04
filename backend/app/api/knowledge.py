@@ -87,13 +87,11 @@ async def list_knowledge(
                     failed_chapter_count += 1
                 
                 # 收集每个章节第一个题目的创建时间和响应时间
-                chapter_quiz_time = 0
                 if chapter.quizzes:
                     first_quiz = chapter.quizzes[0]
                     chapter_creation_times.append(first_quiz.created_at)
                     if first_quiz.response_time_ms:
                         chapter_response_times.append(first_quiz.response_time_ms)
-                        chapter_quiz_time = first_quiz.response_time_ms
                 
                 for quiz in chapter.quizzes:
                     total_quiz_cost += float(quiz.cost or 0)
@@ -115,6 +113,7 @@ async def list_knowledge(
                 # 如果所有章节的题目在60秒内创建，认为是并行生成
                 if max_time_diff <= 60 and chapter_response_times:
                     is_parallel_generation = True
+                    # 并行生成时，实际时间应该是最慢的那个章节的时间
                     actual_quiz_generation_time = max(chapter_response_times)
         
         # 构建响应数据
@@ -139,7 +138,7 @@ async def list_knowledge(
                 "total_input_tokens": outline_input_tokens + quiz_input_tokens,
                 "total_output_tokens": outline_output_tokens + quiz_output_tokens,
                 "total_tokens": outline_input_tokens + outline_output_tokens + quiz_input_tokens + quiz_output_tokens,
-                "total_time_ms": total_outline_time + (actual_quiz_generation_time or total_quiz_time),
+                "total_time_ms": total_outline_time + (actual_quiz_generation_time if is_parallel_generation else total_quiz_time),
                 "outline_cost": total_outline_cost,
                 "outline_input_tokens": outline_input_tokens,
                 "outline_output_tokens": outline_output_tokens,
@@ -318,12 +317,12 @@ async def get_knowledge_outline(
     return outline
 
 
-@router.get("/{knowledge_id}/chapters", response_model=List[ChapterResponse])
+@router.get("/{knowledge_id}/chapters", response_model=List[Dict[str, Any]])
 async def get_knowledge_chapters(
     knowledge_id: int,
     session: AsyncSession = Depends(get_session)
 ):
-    """获取知识章节列表"""
+    """获取知识章节列表（包含题目生成统计）"""
     # 先获取大纲
     outline_result = await session.execute(
         select(Outline).where(Outline.knowledge_id == knowledge_id)
@@ -336,15 +335,45 @@ async def get_knowledge_chapters(
             detail="Outline not found"
         )
     
-    # 获取章节
+    # 获取章节，并加载相关的题目
     result = await session.execute(
         select(Chapter)
+        .options(selectinload(Chapter.quizzes))
         .where(Chapter.outline_id == outline.id)
         .order_by(Chapter.chapter_number)
     )
     chapters = result.scalars().all()
     
-    return chapters
+    # 为每个章节计算统计信息
+    enriched_chapters = []
+    for chapter in chapters:
+        # 计算题目统计
+        quiz_count = len(chapter.quizzes)
+        total_cost = sum(float(quiz.cost or 0) for quiz in chapter.quizzes)
+        total_time_ms = 0
+        
+        # 获取第一个题目的响应时间作为章节生成时间
+        if chapter.quizzes:
+            # 所有题目应该是同时生成的，取第一个题目的响应时间
+            total_time_ms = chapter.quizzes[0].response_time_ms or 0
+        
+        chapter_data = {
+            "id": chapter.id,
+            "outline_id": chapter.outline_id,
+            "chapter_number": chapter.chapter_number,
+            "title": chapter.title,
+            "content": chapter.content,
+            "quiz_generation_status": chapter.quiz_generation_status,
+            "created_at": chapter.created_at.isoformat(),
+            "quiz_generation_time_ms": total_time_ms,
+            "quiz_cost": total_cost,
+            "quiz_count": quiz_count,
+            "last_error": None  # 可以从章节记录中获取错误信息
+        }
+        
+        enriched_chapters.append(chapter_data)
+    
+    return enriched_chapters
 
 
 @router.get("/{knowledge_id}/chapters/{chapter_id}/quizzes", response_model=List[QuizResponse])

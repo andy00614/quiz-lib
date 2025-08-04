@@ -1,0 +1,138 @@
+{
+  "test_summary": {
+    "total_tests": 6,
+    "successful_tests": 6,
+    "failed_tests": 0,
+    "success_rate": 100.0
+  },
+  "performance_analysis": {
+    "chinese": {
+      "avg_response_time_ms": 13209.67,
+      "total_tokens": 2486,
+      "total_cost": 0.022167,
+      "test_count": 3
+    },
+    "english": {
+      "avg_response_time_ms": 11836.67,
+      "total_tokens": 2587,
+      "total_cost": 0.023162,
+      "test_count": 3
+    },
+    "comparison": {
+      "time_difference_ms": 1373.0,
+      "time_difference_pct": 11.6,
+      "token_difference": -101,
+      "cost_difference": -0.000995
+    }
+  },
+  "detailed_results": [
+    {
+      "topic": "我想学习 JS 的 Event-Loop",
+      "language": "chinese",
+      "model": "gpt-4o",
+      "status": "success",
+      "response_time_ms": 10266,
+      "knowledge_id": 51,
+      "outline_id": 45,
+      "input_tokens": 120,
+      "output_tokens": 685,
+      "cost": 0.00715,
+      "timestamp": "2025-08-04T15:41:37.895259",
+      "request_params": {
+        "temperature": 0.7,
+        "max_tokens": 2000,
+        "top_p": 1.0
+      }
+    },
+    {
+      "topic": "I want to learn about JavaScript Event Loop",
+      "language": "english",
+      "model": "gpt-4o",
+      "status": "success",
+      "response_time_ms": 12924,
+      "knowledge_id": 52,
+      "outline_id": 46,
+      "input_tokens": 121,
+      "output_tokens": 678,
+      "cost": 0.007082,
+      "timestamp": "2025-08-04T15:41:51.820956",
+      "request_params": {
+        "temperature": 0.7,
+        "max_tokens": 2000,
+        "top_p": 1.0
+      }
+    },
+    {
+      "topic": "我想学习 FastAPI",
+      "language": "chinese",
+      "model": "gpt-4o",
+      "status": "success",
+      "response_time_ms": 18283,
+      "knowledge_id": 53,
+      "outline_id": 47,
+      "input_tokens": 117,
+      "output_tokens": 865,
+      "cost": 0.008942,
+      "timestamp": "2025-08-04T15:42:12.106423",
+      "request_params": {
+        "temperature": 0.7,
+        "max_tokens": 2000,
+        "top_p": 1.0
+      }
+    },
+    {
+      "topic": "I want to learn FastAPI",
+      "language": "english",
+      "model": "gpt-4o",
+      "status": "success",
+      "response_time_ms": 11104,
+      "knowledge_id": 54,
+      "outline_id": 48,
+      "input_tokens": 118,
+      "output_tokens": 831,
+      "cost": 0.008605,
+      "timestamp": "2025-08-04T15:42:24.211206",
+      "request_params": {
+        "temperature": 0.7,
+        "max_tokens": 2000,
+        "top_p": 1.0
+      }
+    },
+    {
+      "topic": "我想学习 LLM 中的语音工具",
+      "language": "chinese",
+      "model": "gpt-4o",
+      "status": "success",
+      "response_time_ms": 11080,
+      "knowledge_id": 55,
+      "outline_id": 49,
+      "input_tokens": 122,
+      "output_tokens": 577,
+      "cost": 0.006075,
+      "timestamp": "2025-08-04T15:42:37.293633",
+      "request_params": {
+        "temperature": 0.7,
+        "max_tokens": 2000,
+        "top_p": 1.0
+      }
+    },
+    {
+      "topic": "I want to learn about speech tools in LLM",
+      "language": "english",
+      "model": "gpt-4o",
+      "status": "success",
+      "response_time_ms": 11482,
+      "knowledge_id": 56,
+      "outline_id": 50,
+      "input_tokens": 122,
+      "output_tokens": 717,
+      "cost": 0.007475,
+      "timestamp": "2025-08-04T15:42:49.777785",
+      "request_params": {
+        "temperature": 0.7,
+        "max_tokens": 2000,
+        "top_p": 1.0
+      }
+    }
+  ]
+}

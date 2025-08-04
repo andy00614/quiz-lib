@@ -1,0 +1,117 @@
+{
+  "workflow_summary": {
+    "knowledge_id": 60,
+    "title": "我想学习 React Hooks 的使用和最佳实践",
+    "model_used": "gpt-4o",
+    "total_time_ms": 43403,
+    "workflow_status": "success"
+  },
+  "outline_generation": {
+    "input_tokens": 131,
+    "output_tokens": 649,
+    "cost": "0.006817",
+    "chapters_generated": 9
+  },
+  "quiz_generation": {
+    "total_chapters": 9,
+    "success_count": 9,
+    "failed_count": 0,
+    "total_cost": 0.125063,
+    "total_input_tokens": 2129,
+    "total_output_tokens": 11974,
+    "generation_time_ms": 24512
+  },
+  "final_verification": {
+    "knowledge_id": 60,
+    "title": "我想学习 React Hooks 的使用和最佳实践",
+    "status": "completed",
+    "chapters_count": 0,
+    "total_quizzes": 0,
+    "outline_cost": null,
+    "total_quiz_cost": 0,
+    "chapter_details": []
+  },
+  "detailed_workflow_log": [
+    {
+      "step": "INIT",
+      "message": "获取模型 gpt-4o 的ID",
+      "timestamp": "2025-08-04T15:48:48.996234",
+      "data": null
+    },
+    {
+      "step": "INIT",
+      "message": "找到模型 gpt-4o, ID: 5",
+      "timestamp": "2025-08-04T15:48:49.115481",
+      "data": null
+    },
+    {
+      "step": "OUTLINE",
+      "message": "开始生成学习大纲",
+      "timestamp": "2025-08-04T15:48:49.115500",
+      "data": null
+    },
+    {
+      "step": "OUTLINE",
+      "message": "发送大纲生成请求",
+      "timestamp": "2025-08-04T15:48:49.115505",
+      "data": {
+        "api": "/generation/outline",
+        "model_id": 5,
+        "title": "我想学习 React Hooks 的使用和最佳实践"
+      }
+    },
+    {
+      "step": "OUTLINE",
+      "message": "大纲生成成功，耗时: 18159ms",
+      "timestamp": "2025-08-04T15:49:07.275558",
+      "data": {
+        "knowledge_id": 60,
+        "outline_id": 54,
+        "input_tokens": 131,
+        "output_tokens": 649,
+        "cost": "0.006817",
+        "chapters_count": 9
+      }
+    },
+    {
+      "step": "QUIZ",
+      "message": "开始为知识记录 60 批量生成题目",
+      "timestamp": "2025-08-04T15:49:07.275787",
+      "data": null
+    },
+    {
+      "step": "QUIZ",
+      "message": "批量题目生成完成，耗时: 24888ms",
+      "timestamp": "2025-08-04T15:49:32.164925",
+      "data": {
+        "total_chapters": 9,
+        "success_count": 9,
+        "failed_count": 0,
+        "total_cost": 0.125063,
+        "total_tokens": 14103,
+        "total_time_ms": 24512
+      }
+    },
+    {
+      "step": "VERIFY",
+      "message": "验证知识记录 60 的生成结果",
+      "timestamp": "2025-08-04T15:49:32.165147",
+      "data": null
+    },
+    {
+      "step": "VERIFY",
+      "message": "验证完成",
+      "timestamp": "2025-08-04T15:49:32.399383",
+      "data": {
+        "knowledge_id": 60,
+        "title": "我想学习 React Hooks 的使用和最佳实践",
+        "status": "completed",
+        "chapters_count": 0,
+        "total_quizzes": 0,
+        "outline_cost": null,
+        "total_quiz_cost": 0,
+        "chapter_details": []
+      }
+    }
+  ]
+}

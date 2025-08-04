@@ -17,6 +17,10 @@ interface Chapter {
   title: string;
   content: string;
   quiz_generation_status: 'pending' | 'generating' | 'completed' | 'failed';
+  created_at: string;
+  quiz_generation_time_ms?: number;
+  quiz_cost?: number;
+  quiz_count?: number;
   last_error?: string;
 }
 
@@ -619,6 +623,31 @@ export default function KnowledgeDetailPage({ params }: { params: Promise<{ id: 
                         ? `${chapter.content.substring(0, 100)}...` 
                         : chapter.content}
                     </p>
+                    
+                    {/* 题目生成统计信息 */}
+                    {chapter.quiz_generation_status === 'completed' && (
+                      <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                        {chapter.quiz_count && (
+                          <div className="flex items-center gap-1">
+                            <Hash className="w-3 h-3" />
+                            <span>{chapter.quiz_count}题</span>
+                          </div>
+                        )}
+                        {chapter.quiz_generation_time_ms && (
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            <span>{formatTime(chapter.quiz_generation_time_ms)}</span>
+                          </div>
+                        )}
+                        {chapter.quiz_cost && (
+                          <div className="flex items-center gap-1">
+                            <DollarSign className="w-3 h-3" />
+                            <span>{formatCost(chapter.quiz_cost)}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
                     {chapter.quiz_generation_status === 'failed' && chapter.last_error && (
                       <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
                         <AlertCircle className="w-3 h-3" />
