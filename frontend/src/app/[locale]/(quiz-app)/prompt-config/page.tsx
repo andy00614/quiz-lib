@@ -154,6 +154,7 @@ export default function PromptConfigPage() {
     setIsSaving(true);
     try {
       const response = await apiClient.updatePromptTemplate(editingTemplate.id, {
+        type: editingTemplate.type,
         name: editingTemplate.name,
         content: editingTemplate.content,
         is_default: editingTemplate.is_default,

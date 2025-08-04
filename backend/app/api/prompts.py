@@ -236,13 +236,26 @@ async def update_prompt_template(
             detail="Prompt template not found"
         )
     
-    # 如果要设置为默认模板，需要取消同类型的其他默认模板
+    # 处理模板更新
     update_data = template_data.model_dump(exclude_unset=True)
+    
+    # 检查是否变更了模板类型
+    type_changed = "type" in update_data and update_data["type"] != template.type
+    old_type = template.type
+    new_type = update_data.get("type", template.type)
+    
+    # 如果类型发生变更且当前是默认模板，需要先取消默认状态
+    if type_changed and template.is_default:
+        # 取消当前模板的默认状态，因为它要改变类型了
+        template.is_default = False
+        update_data["is_default"] = False
+    
+    # 如果要设置为默认模板，需要取消同类型的其他默认模板
     if update_data.get("is_default"):
         await session.execute(
             PromptTemplate.__table__.update()
             .where(
-                PromptTemplate.type == template.type,
+                PromptTemplate.type == new_type,
                 PromptTemplate.id != template_id
             )
             .values(is_default=False)

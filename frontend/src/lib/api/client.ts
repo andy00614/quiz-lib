@@ -106,6 +106,7 @@ export class ApiClient {
   }
 
   async updatePromptTemplate(id: number, data: {
+    type?: 'outline' | 'quiz';
     name?: string;
     content?: string;
     is_default?: boolean;

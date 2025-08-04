@@ -59,6 +59,7 @@ class PromptTemplateCreate(PromptTemplateBase):
 
 class PromptTemplateUpdate(BaseModel):
     """更新Prompt模板schema"""
+    type: Optional[str] = Field(None, max_length=50)  # 允许更新模板类型
     name: Optional[str] = Field(None, max_length=100)
     content: Optional[str] = None
     is_default: Optional[bool] = None
