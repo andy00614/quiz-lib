@@ -211,12 +211,23 @@ export default function PromptConfigPage() {
         toast.success(isSettingDefault ? '设置默认模板成功！' : '取消默认模板成功！');
         
         // 立即更新模板列表状态
-        setTemplates(prevTemplates => 
-          prevTemplates.map(template => ({
-            ...template,
-            is_default: template.id === templateId ? !template.is_default : false
-          }))
-        );
+        setTemplates(prevTemplates => {
+          const targetTemplate = prevTemplates.find(t => t.id === templateId);
+          if (!targetTemplate) return prevTemplates;
+          
+          return prevTemplates.map(template => {
+            if (template.id === templateId) {
+              // 切换当前模板的默认状态
+              return { ...template, is_default: !template.is_default };
+            } else if (template.type === targetTemplate.type && !targetTemplate.is_default) {
+              // 如果要设置为默认，取消同类型的其他默认模板
+              return { ...template, is_default: false };
+            } else {
+              // 其他模板保持不变
+              return template;
+            }
+          });
+        });
         
         // 更新选中的模板状态
         if (selectedTemplate && selectedTemplate.id === templateId) {
