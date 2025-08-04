@@ -99,11 +99,11 @@ export default function KnowledgeListPage() {
           {knowledgeList.map((item) => (
             <Card 
               key={item.id} 
-              className="cursor-pointer hover:shadow-lg transition-shadow"
+              className="cursor-pointer hover:shadow-lg transition-shadow h-full flex flex-col"
               onClick={() => router.push(`/knowledge/${item.id}`)}
             >
               <CardHeader>
-                <CardTitle className="text-lg line-clamp-2 flex items-center gap-2">
+                <CardTitle className="text-lg line-clamp-1 flex items-center gap-2">
                   {item.title}
                   {item.statistics?.last_error && (
                     <Tooltip>
@@ -121,8 +121,8 @@ export default function KnowledgeListPage() {
                   <span>{item.model.name}</span>
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-3 text-sm">
+              <CardContent className="flex-1 flex flex-col">
+                <div className="space-y-3 text-sm flex-1 flex flex-col">
                   <div className="flex justify-between">
                     <span>状态:</span>
                     <span className="font-medium">{getStatusBadge(item.status)}</span>
@@ -313,13 +313,13 @@ export default function KnowledgeListPage() {
                         </div>
                       </div>
                       <div className="bg-gradient-to-r from-blue-50/50 to-indigo-50/50 rounded px-2 py-1 border border-blue-100/50">
-                        <div className="text-xs text-gray-600 font-mono line-clamp-2">
+                        <div className="text-xs text-gray-600 font-mono line-clamp-1 break-all">
                           {/* 优先显示大纲prompt，如果没有则显示题目prompt */}
                           {(() => {
                             const displayPrompt = item.prompt_used || item.quiz_prompt_used || '';
                             const promptType = item.prompt_used ? '大纲: ' : '题目: ';
-                            return displayPrompt.length > 100 
-                              ? `${promptType}${displayPrompt.substring(0, 100)}...` 
+                            return displayPrompt.length > 60 
+                              ? `${promptType}${displayPrompt.substring(0, 60)}...` 
                               : `${promptType}${displayPrompt}`;
                           })()}
                         </div>
@@ -327,7 +327,7 @@ export default function KnowledgeListPage() {
                     </div>
                   )}
                   
-                  <div className="flex items-center gap-1 text-muted-foreground pt-2 border-t">
+                  <div className="flex items-center gap-1 text-muted-foreground pt-2 border-t mt-auto">
                     <Calendar className="w-3 h-3" />
                     <span className="text-xs">{new Date(item.created_at).toLocaleString()}</span>
                   </div>

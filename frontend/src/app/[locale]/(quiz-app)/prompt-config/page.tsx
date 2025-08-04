@@ -116,11 +116,21 @@ export default function PromptConfigPage() {
         variables: parsedVariables
       });
       
-      if (response.success) {
+      if (response.success && response.data) {
         toast.success('模板创建成功！');
         setIsCreating(false);
         setEditingTemplate(null);
-        fetchTemplates();
+        
+        // 重新获取模板列表
+        const listResponse = await apiClient.getPromptTemplates();
+        if (listResponse.success && listResponse.data) {
+          setTemplates(listResponse.data);
+          // 选中新创建的模板
+          const newTemplate = listResponse.data.find((t: PromptTemplate) => t.id === response.data.id);
+          if (newTemplate) {
+            setSelectedTemplate(newTemplate);
+          }
+        }
       }
     } catch (error) {
       console.error('创建模板失败:', error);
@@ -145,8 +155,19 @@ export default function PromptConfigPage() {
       
       if (response.success) {
         toast.success('模板更新成功！');
+        const currentTemplateId = editingTemplate.id;
         setEditingTemplate(null);
-        fetchTemplates();
+        
+        // 重新获取模板列表
+        const listResponse = await apiClient.getPromptTemplates();
+        if (listResponse.success && listResponse.data) {
+          setTemplates(listResponse.data);
+          // 找到更新后的模板并设置为选中状态
+          const updatedTemplate = listResponse.data.find((t: PromptTemplate) => t.id === currentTemplateId);
+          if (updatedTemplate) {
+            setSelectedTemplate(updatedTemplate);
+          }
+        }
       }
     } catch (error) {
       console.error('更新模板失败:', error);
@@ -164,6 +185,10 @@ export default function PromptConfigPage() {
       const response = await apiClient.deletePromptTemplate(templateId);
       if (response.success) {
         toast.success('模板删除成功！');
+        // 如果删除的是当前选中的模板，清空选中状态
+        if (selectedTemplate && selectedTemplate.id === templateId) {
+          setSelectedTemplate(null);
+        }
         fetchTemplates();
       }
     } catch (error) {
@@ -299,7 +324,11 @@ export default function PromptConfigPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setEditingTemplate(selectedTemplate)}
+                          onClick={() => {
+                            setEditingTemplate(selectedTemplate);
+                            // 立即解析变量
+                            parseTemplateContent(selectedTemplate.content);
+                          }}
                         >
                           <Edit2 className="w-4 h-4 mr-1" />
                           编辑
@@ -311,6 +340,8 @@ export default function PromptConfigPage() {
                             const newTemplate = { ...selectedTemplate, id: 0, name: `${selectedTemplate.name} (复制)` };
                             setEditingTemplate(newTemplate);
                             setIsCreating(true);
+                            // 立即解析变量
+                            parseTemplateContent(selectedTemplate.content);
                           }}
                         >
                           <Copy className="w-4 h-4 mr-1" />
