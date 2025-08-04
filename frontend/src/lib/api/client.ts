@@ -83,7 +83,7 @@ export class ApiClient {
   }
 
   // Prompt Templates API
-  async getPromptTemplates(type?: 'quiz_outline' | 'test_outline' | 'quiz') {
+  async getPromptTemplates(type?: 'outline' | 'quiz') {
     const params = type ? `?type_filter=${type}` : '';
     return this.request<any[]>(`/prompts${params}`);
   }
@@ -93,7 +93,7 @@ export class ApiClient {
   }
 
   async createPromptTemplate(data: {
-    type: 'quiz_outline' | 'test_outline' | 'quiz';
+    type: 'outline' | 'quiz';
     name: string;
     content: string;
     is_default?: boolean;

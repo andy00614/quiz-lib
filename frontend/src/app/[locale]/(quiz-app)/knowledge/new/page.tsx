@@ -105,11 +105,13 @@ export default function NewKnowledgePage() {
         }
         
         // 获取大纲模板
-        const outlineTemplatesResponse = await apiClient.getPromptTemplates('quiz_outline');
+        const outlineTemplatesResponse = await apiClient.getPromptTemplates('outline');
         if (outlineTemplatesResponse.success && outlineTemplatesResponse.data) {
           console.log('Outline templates:', outlineTemplatesResponse.data); // 调试日志
-          setOutlineTemplates(outlineTemplatesResponse.data);
-          const defaultTemplate = outlineTemplatesResponse.data.find(t => t.is_default);
+          // 过滤出只有 outline 类型的模板
+          const filteredOutlineTemplates = outlineTemplatesResponse.data.filter((t: any) => t.type === 'outline');
+          setOutlineTemplates(filteredOutlineTemplates);
+          const defaultTemplate = filteredOutlineTemplates.find(t => t.is_default);
           if (defaultTemplate) {
             setSelectedOutlineTemplate(defaultTemplate.id.toString());
             setOutlinePrompt(defaultTemplate.content);
@@ -130,8 +132,10 @@ export default function NewKnowledgePage() {
         // 获取题目模板
         const quizTemplatesResponse = await apiClient.getPromptTemplates('quiz');
         if (quizTemplatesResponse.success && quizTemplatesResponse.data) {
-          setQuizTemplates(quizTemplatesResponse.data);
-          const defaultTemplate = quizTemplatesResponse.data.find(t => t.is_default);
+          // 过滤出只有 quiz 类型的模板
+          const filteredQuizTemplates = quizTemplatesResponse.data.filter((t: any) => t.type === 'quiz');
+          setQuizTemplates(filteredQuizTemplates);
+          const defaultTemplate = filteredQuizTemplates.find(t => t.is_default);
           if (defaultTemplate) {
             setSelectedQuizTemplate(defaultTemplate.id.toString());
             setQuizPrompt(defaultTemplate.content);

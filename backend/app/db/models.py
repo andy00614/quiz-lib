@@ -44,7 +44,7 @@ class PromptTemplate(Base):
     __tablename__ = "prompt_templates"
     
     id = Column(Integer, primary_key=True)
-    type = Column(String(50), nullable=False)  # 'quiz_outline', 'test_outline', 'quiz'
+    type = Column(String(50), nullable=False)  # 'outline', 'quiz'
     name = Column(String(100), nullable=False)
     content = Column(Text, nullable=False)
     is_default = Column(Boolean, default=False)
