@@ -43,7 +43,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "*"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
     expose_headers=["*"],
 )
@@ -72,7 +72,7 @@ async def proxy_headers_middleware(request, call_next):
             response.headers["access-control-allow-origin"] = "*"
     
     response.headers["access-control-allow-credentials"] = "true"
-    response.headers["access-control-allow-methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["access-control-allow-methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
     response.headers["access-control-allow-headers"] = "*"
     
     return response
