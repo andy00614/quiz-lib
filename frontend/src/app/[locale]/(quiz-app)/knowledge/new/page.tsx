@@ -105,7 +105,7 @@ export default function NewKnowledgePage() {
         }
         
         // 获取大纲模板
-        const outlineTemplatesResponse = await apiClient.getPromptTemplates('outline');
+        const outlineTemplatesResponse = await apiClient.getPromptTemplates('quiz_outline');
         if (outlineTemplatesResponse.success && outlineTemplatesResponse.data) {
           console.log('Outline templates:', outlineTemplatesResponse.data); // 调试日志
           setOutlineTemplates(outlineTemplatesResponse.data);

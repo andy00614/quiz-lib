@@ -45,7 +45,7 @@ class ModelResponse(ModelBase):
 
 class PromptTemplateBase(BaseModel):
     """Prompt模板基础schema"""
-    type: str = Field(..., max_length=50)  # 'outline' 或 'quiz'
+    type: str = Field(..., max_length=50)  # 'quiz_outline', 'test_outline', 'quiz'
     name: str = Field(..., max_length=100)
     content: str
     is_default: bool = False

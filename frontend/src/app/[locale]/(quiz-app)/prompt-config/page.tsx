@@ -20,7 +20,7 @@ import { toast } from 'sonner';
 
 interface PromptTemplate {
   id: number;
-  type: 'outline' | 'quiz';
+  type: 'quiz_outline' | 'test_outline' | 'quiz';
   name: string;
   content: string;
   is_default: boolean;
@@ -34,7 +34,7 @@ export default function PromptConfigPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'outline' | 'quiz'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'quiz_outline' | 'test_outline' | 'quiz'>('all');
   const [parsedVariables, setParsedVariables] = useState<any[]>([]);
   const [cursorPosition, setCursorPosition] = useState<number>(0);
   const [textareaRef, setTextareaRef] = useState<HTMLTextAreaElement | null>(null);
@@ -91,11 +91,17 @@ export default function PromptConfigPage() {
 
   // 预定义变量库
   const predefinedVariables = {
-    outline: [
+    quiz_outline: [
       { name: 'topic', displayName: '主题', description: '知识内容的主题', icon: '📚' },
       { name: 'level', displayName: '难度等级', description: '内容难度级别（初级/中级/高级）', icon: '📊' },
       { name: 'chapters', displayName: '章节数量', description: '生成的章节数量', icon: '📋' },
       { name: 'language', displayName: '语言', description: '内容使用的语言', icon: '🌐' }
+    ],
+    test_outline: [
+      { name: 'topic', displayName: '主题', description: '测试内容的主题', icon: '📚' },
+      { name: 'test_type', displayName: '测试类型', description: '测试的类型（期中/期末/单元测试）', icon: '🎯' },
+      { name: 'duration', displayName: '测试时长', description: '测试的时间长度', icon: '⏱️' },
+      { name: 'difficulty', displayName: '难度分布', description: '测试题目的难度分布', icon: '📊' }
     ],
     quiz: [
       { name: 'chapter_title', displayName: '章节标题', description: '当前章节的标题', icon: '📖' },
@@ -275,7 +281,7 @@ export default function PromptConfigPage() {
                     setIsCreating(true);
                     setEditingTemplate({
                       id: 0,
-                      type: 'outline',
+                      type: 'quiz_outline',
                       name: '',
                       content: '',
                       is_default: false,
@@ -301,9 +307,10 @@ export default function PromptConfigPage() {
                 </div>
                 
                 <Tabs defaultValue="all" value={filterType} onValueChange={(v) => setFilterType(v as any)}>
-                  <TabsList className="grid w-full grid-cols-3">
+                  <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="all">全部</TabsTrigger>
-                    <TabsTrigger value="outline">大纲</TabsTrigger>
+                    <TabsTrigger value="quiz_outline">题目大纲</TabsTrigger>
+                    <TabsTrigger value="test_outline">测试大纲</TabsTrigger>
                     <TabsTrigger value="quiz">题目</TabsTrigger>
                   </TabsList>
                 </Tabs>
@@ -328,7 +335,8 @@ export default function PromptConfigPage() {
                             <Star className="w-4 h-4 text-yellow-500" />
                           )}
                           <Badge variant="outline" className="text-xs">
-                            {template.type === 'outline' ? '大纲' : '题目'}
+                            {template.type === 'quiz_outline' ? '题目大纲' : 
+                             template.type === 'test_outline' ? '测试大纲' : '题目'}
                           </Badge>
                         </div>
                       </div>
@@ -408,13 +416,14 @@ export default function PromptConfigPage() {
                         <Label>模板类型</Label>
                         <Select
                           value={editingTemplate.type}
-                          onValueChange={(v) => setEditingTemplate({ ...editingTemplate, type: v as 'outline' | 'quiz' })}
+                          onValueChange={(v) => setEditingTemplate({ ...editingTemplate, type: v as 'quiz_outline' | 'test_outline' | 'quiz' })}
                         >
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="outline">大纲生成</SelectItem>
+                            <SelectItem value="quiz_outline">题目大纲生成</SelectItem>
+                            <SelectItem value="test_outline">测试大纲生成</SelectItem>
                             <SelectItem value="quiz">题目生成</SelectItem>
                           </SelectContent>
                         </Select>
@@ -465,9 +474,9 @@ export default function PromptConfigPage() {
                               <div>
                                 <h4 className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">通用变量</h4>
                                 <div className="space-y-1">
-                                  {predefinedVariables.outline.concat(predefinedVariables.quiz)
-                                    .filter((v, i, arr) => arr.findIndex(x => x.name === v.name) === i)
-                                    .map(variable => (
+                                  {predefinedVariables.quiz_outline.concat(predefinedVariables.test_outline, predefinedVariables.quiz)
+                                    .filter((v: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.name === v.name) === i)
+                                    .map((variable: any) => (
                                     <Button
                                       key={variable.name}
                                       variant="ghost"
@@ -491,10 +500,11 @@ export default function PromptConfigPage() {
                               {editingTemplate.type && (
                                 <div>
                                   <h4 className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
-                                    {editingTemplate.type === 'outline' ? '大纲专用' : '题目专用'}
+                                    {editingTemplate.type === 'quiz_outline' ? '题目大纲专用' : 
+                                     editingTemplate.type === 'test_outline' ? '测试大纲专用' : '题目专用'}
                                   </h4>
                                   <div className="space-y-1">
-                                    {predefinedVariables[editingTemplate.type].map(variable => (
+                                    {predefinedVariables[editingTemplate.type].map((variable: any) => (
                                       <Button
                                         key={variable.name}
                                         variant="ghost"
@@ -592,7 +602,8 @@ export default function PromptConfigPage() {
                           <div>
                             <span className="text-muted-foreground">类型：</span>
                             <Badge variant="outline" className="ml-2">
-                              {selectedTemplate.type === 'outline' ? '大纲生成' : '题目生成'}
+                              {selectedTemplate.type === 'quiz_outline' ? '题目大纲生成' : 
+                               selectedTemplate.type === 'test_outline' ? '测试大纲生成' : '题目生成'}
                             </Badge>
                           </div>
                           <div>
