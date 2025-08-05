@@ -278,7 +278,8 @@ export default function KnowledgeDetailPage({ params }: { params: Promise<{ id: 
               <span>{knowledge.model.name}</span>
               <span className="text-xs">({knowledge.model.provider})</span>
             </div>
-            <span>创建时间: {new Date(knowledge.created_at).toLocaleString()}</span>
+            <span>创建时间: </span>
+            {new Date(knowledge.created_at.slice(0, 23) + "Z").toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}
           </div>
         </CardHeader>
       </Card>

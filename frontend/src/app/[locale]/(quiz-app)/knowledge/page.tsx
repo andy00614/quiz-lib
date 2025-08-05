@@ -439,7 +439,7 @@ function KnowledgeListContent() {
                   
                   <div className="flex items-center gap-1 text-muted-foreground pt-2 border-t mt-auto">
                     <Calendar className="w-3 h-3" />
-                    <span className="text-xs">{new Date(item.created_at).toLocaleString()}</span>
+                    <span className="text-xs">{new Date(item.created_at.slice(0, 23) + "Z").toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}</span>
                   </div>
                 </div>
               </CardContent>
