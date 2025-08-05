@@ -35,11 +35,6 @@ const navItems = [
     icon: BarChart3,
   },
   {
-    href: '/analysis-report',
-    label: '分析报告',
-    icon: TrendingUp,
-  },
-  {
     href: '/logs',
     label: '请求日志',
     icon: FileText,
