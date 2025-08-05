@@ -278,7 +278,12 @@ export default function NewKnowledgePage() {
       });
 
       // 第二步：自动为所有章节生成题目
-      const batchQuizResponse = await apiClient.generateBatchQuiz(knowledgeId);
+      // 处理题目prompt
+      const finalQuizPrompt = useTemplate && selectedQuizTemplate && quizPrompt 
+        ? quizPrompt 
+        : (!useTemplate && quizPrompt ? quizPrompt : undefined);
+      
+      const batchQuizResponse = await apiClient.generateBatchQuiz(knowledgeId, finalQuizPrompt);
 
       if (!batchQuizResponse.success || !batchQuizResponse.data) {
         // 即使题目生成失败，大纲已经创建成功，仍然跳转到详情页

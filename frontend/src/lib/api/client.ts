@@ -183,7 +183,7 @@ export class ApiClient {
     });
   }
 
-  async generateBatchQuiz(knowledgeId: number) {
+  async generateBatchQuiz(knowledgeId: number, quizPrompt?: string) {
     return this.request<{
       total_chapters: number;
       success_count: number;
@@ -201,6 +201,7 @@ export class ApiClient {
       total_tokens: number;
     }>(`/generation/quiz/batch?knowledge_id=${knowledgeId}`, {
       method: 'POST',
+      body: quizPrompt ? JSON.stringify({ quiz_prompt: quizPrompt }) : undefined,
     });
   }
 

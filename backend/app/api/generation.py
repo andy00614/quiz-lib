@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+from pydantic import BaseModel
 import json
 import asyncio
 import time
@@ -407,10 +408,14 @@ async def generate_chapter_quiz(
             }
 
 
+class BatchQuizRequest(BaseModel):
+    quiz_prompt: Optional[str] = None
+
 @router.post("/quiz/batch", response_model=Dict[str, Any])
 async def generate_batch_quiz(
     knowledge_id: int,
     background_tasks: BackgroundTasks,
+    request: Optional[BatchQuizRequest] = None,
     session: AsyncSession = Depends(get_session)
 ):
     """为知识记录的所有章节批量生成题目"""
@@ -462,15 +467,21 @@ async def generate_batch_quiz(
             detail="Model not found"
         )
     
-    # 获取默认题目prompt模板
-    template_result = await session.execute(
-        select(PromptTemplate).where(
-            PromptTemplate.type == "quiz",
-            PromptTemplate.is_default == True
+    # 获取题目prompt：优先使用用户传入的，否则使用默认模板
+    if request and request.quiz_prompt:
+        default_prompt = request.quiz_prompt
+        logger.info(f"Using user-provided quiz prompt")
+    else:
+        # 获取默认题目prompt模板
+        template_result = await session.execute(
+            select(PromptTemplate).where(
+                PromptTemplate.type == "quiz",
+                PromptTemplate.is_default == True
+            )
         )
-    )
-    template = template_result.scalar_one_or_none()
-    default_prompt = template.content if template else "请根据章节内容生成选择题。"
+        template = template_result.scalar_one_or_none()
+        default_prompt = template.content if template else "请根据章节内容生成选择题。"
+        logger.info(f"Using default quiz template")
     
     # 记录开始时间
     start_time = time.time()
