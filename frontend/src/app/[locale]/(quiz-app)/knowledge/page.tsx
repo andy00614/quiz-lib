@@ -1,16 +1,24 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Calendar, Bot, Clock, Hash, DollarSign, AlertCircle, Info, FileText, Copy, Eye } from 'lucide-react';
+import { Plus, Calendar, Bot, Clock, Hash, DollarSign, AlertCircle, Info, FileText, Copy, Eye, Search } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
 import { toast } from 'sonner';
 import { formatCost, formatInputOutputTokens, formatCostDetails, formatTime, getStatusColor, getStatusText } from '@/lib/format';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface KnowledgeItem {
   id: number;
@@ -57,7 +65,12 @@ interface KnowledgeItem {
 
 export default function KnowledgeListPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [knowledgeList, setKnowledgeList] = useState<KnowledgeItem[]>([]);
+  
+  // 从 URL 参数初始化筛选状态
+  const [searchTitle, setSearchTitle] = useState(searchParams.get('search') || '');
+  const [selectedModel, setSelectedModel] = useState<string>(searchParams.get('model') || 'all');
 
   useEffect(() => {
     // 从后端获取知识列表
@@ -82,7 +95,75 @@ export default function KnowledgeListPage() {
     return <span className={colorClass}>{text}</span>;
   };
 
-  console.log('knowledgeList', knowledgeList)
+  // 获取所有唯一的模型
+  const uniqueModels = useMemo(() => {
+    const models = new Map();
+    knowledgeList.forEach(item => {
+      const modelKey = `${item.model.provider}-${item.model.name}`;
+      models.set(modelKey, {
+        id: item.model.id,
+        name: item.model.name,
+        provider: item.model.provider
+      });
+    });
+    return Array.from(models.values());
+  }, [knowledgeList]);
+
+  // 过滤知识列表
+  const filteredKnowledgeList = useMemo(() => {
+    return knowledgeList.filter(item => {
+      // 标题筛选
+      const titleMatch = searchTitle === '' || 
+        item.title.toLowerCase().includes(searchTitle.toLowerCase());
+      
+      // 模型筛选
+      const modelMatch = selectedModel === 'all' || 
+        `${item.model.provider}-${item.model.name}` === selectedModel;
+      
+      return titleMatch && modelMatch;
+    });
+  }, [knowledgeList, searchTitle, selectedModel]);
+
+  // 更新 URL 参数
+  const updateURLParams = useCallback((params: { search?: string; model?: string }) => {
+    const current = new URLSearchParams(Array.from(searchParams.entries()));
+    
+    // 更新搜索参数
+    if (params.search !== undefined) {
+      if (params.search) {
+        current.set('search', params.search);
+      } else {
+        current.delete('search');
+      }
+    }
+    
+    // 更新模型参数
+    if (params.model !== undefined) {
+      if (params.model && params.model !== 'all') {
+        current.set('model', params.model);
+      } else {
+        current.delete('model');
+      }
+    }
+    
+    // 更新 URL，不刷新页面
+    const search = current.toString();
+    const query = search ? `?${search}` : '';
+    router.push(`${window.location.pathname}${query}`);
+  }, [searchParams, router]);
+
+  // 处理搜索变化
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchTitle(value);
+    updateURLParams({ search: value });
+  }, [updateURLParams]);
+
+  // 处理模型选择变化
+  const handleModelChange = useCallback((value: string) => {
+    setSelectedModel(value);
+    updateURLParams({ model: value });
+  }, [updateURLParams]);
+
 
   return (
     <div className="container mx-auto max-w-6xl p-6">
@@ -93,9 +174,39 @@ export default function KnowledgeListPage() {
           创建新知识
         </Button>
       </div>
+      
+      {/* 筛选区域 */}
+      <div className="flex gap-4 mb-6">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+          <Input
+            placeholder="搜索知识标题..."
+            value={searchTitle}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        
+        <Select value={selectedModel} onValueChange={handleModelChange}>
+          <SelectTrigger className="w-[240px]">
+            <SelectValue placeholder="选择模型" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">所有模型</SelectItem>
+            {uniqueModels.map((model) => (
+              <SelectItem 
+                key={`${model.provider}-${model.name}`} 
+                value={`${model.provider}-${model.name}`}
+              >
+                {model.name} ({model.provider})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
       <TooltipProvider>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {knowledgeList.map((item) => (
+          {filteredKnowledgeList.map((item) => (
             <Card 
               key={item.id} 
               className="cursor-pointer hover:shadow-lg transition-shadow h-full flex flex-col"
@@ -337,13 +448,21 @@ export default function KnowledgeListPage() {
         </div>
       </TooltipProvider>
 
-      {knowledgeList.length === 0 && (
+      {filteredKnowledgeList.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-muted-foreground mb-4">还没有创建任何知识</p>
-          <Button onClick={() => router.push('/knowledge/new')}>
-            <Plus className="w-4 h-4 mr-2" />
-            创建第一个知识
-          </Button>
+          {knowledgeList.length === 0 ? (
+            <>
+              <p className="text-muted-foreground mb-4">还没有创建任何知识</p>
+              <Button onClick={() => router.push('/knowledge/new')}>
+                <Plus className="w-4 h-4 mr-2" />
+                创建第一个知识
+              </Button>
+            </>
+          ) : (
+            <p className="text-muted-foreground">
+              没有找到匹配的知识。请尝试调整筛选条件。
+            </p>
+          )}
         </div>
       )}
     </div>
