@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -63,7 +63,7 @@ interface KnowledgeItem {
   outlines?: any[];
 }
 
-export default function KnowledgeListPage() {
+function KnowledgeListContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [knowledgeList, setKnowledgeList] = useState<KnowledgeItem[]>([]);
@@ -466,5 +466,13 @@ export default function KnowledgeListPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function KnowledgeListPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <KnowledgeListContent />
+    </Suspense>
   );
 }
