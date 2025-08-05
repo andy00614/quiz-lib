@@ -372,11 +372,6 @@ export default function KnowledgeDetailPage({ params }: { params: Promise<{ id: 
                   {formatTime(knowledge.statistics.actual_quiz_time_ms || knowledge.statistics.quiz_time_ms)}
                 </span>
               </div>
-              {knowledge.statistics.actual_quiz_time_ms && (
-                <div className="text-xs text-muted-foreground">
-                  并行优化: 从{formatTime(knowledge.statistics.quiz_time_ms)}缩短至{formatTime(knowledge.statistics.actual_quiz_time_ms)}
-                </div>
-              )}
             </div>
           </CardContent>
         </Card>
