@@ -12,7 +12,7 @@ class Model(Base):
     """AI模型表"""
     __tablename__ = "models"
     
-    id = Column(Integer, primary_key=True)
+    id = Column(String(50), primary_key=True)
     name = Column(String(100), nullable=False, unique=True)  # API中使用的模型名称
     display_name = Column(String(100), nullable=False)  # 用户友好的显示名称
     provider = Column(String(50), nullable=False)  # openai, anthropic, google
@@ -71,7 +71,7 @@ class KnowledgeRecord(Base):
     
     id = Column(Integer, primary_key=True)
     title = Column(Text, nullable=False)
-    model_id = Column(Integer, ForeignKey("models.id"))
+    model_id = Column(String(50), ForeignKey("models.id"))
     temperature = Column(DECIMAL(3, 2), default=0.7)
     max_tokens = Column(Integer)
     top_p = Column(DECIMAL(3, 2))
@@ -105,7 +105,7 @@ class Outline(Base):
     knowledge_id = Column(Integer, ForeignKey("knowledge_records.id", ondelete="CASCADE"))
     content = Column(JSON, nullable=False)  # 存储结构化的大纲内容
     raw_response = Column(Text)  # 原始 AI 响应
-    model_id = Column(Integer, ForeignKey("models.id"))
+    model_id = Column(String(50), ForeignKey("models.id"))
     prompt_used = Column(Text)  # 实际使用的完整 prompt
     input_tokens = Column(Integer)
     output_tokens = Column(Integer)
@@ -148,7 +148,7 @@ class Quiz(Base):
     options = Column(JSON, nullable=False)  # 存储 A, B, C, D 选项
     correct_answer = Column(String(1), nullable=False)  # A, B, C, 或 D
     explanation = Column(Text)
-    model_id = Column(Integer, ForeignKey("models.id"))
+    model_id = Column(String(50), ForeignKey("models.id"))
     prompt_used = Column(Text)
     input_tokens = Column(Integer)
     output_tokens = Column(Integer)
@@ -168,7 +168,7 @@ class APIRequestLog(Base):
     id = Column(Integer, primary_key=True)
     knowledge_id = Column(Integer, ForeignKey("knowledge_records.id"))
     request_type = Column(String(50), nullable=False)  # 'outline_generation' 或 'quiz_generation'
-    model_id = Column(Integer, ForeignKey("models.id"))
+    model_id = Column(String(50), ForeignKey("models.id"))
     prompt = Column(Text, nullable=False)
     request_params = Column(JSON)  # 存储温度、max_tokens 等参数
     response = Column(Text)
@@ -190,7 +190,7 @@ class ModelPerformanceStats(Base):
     __tablename__ = "model_performance_stats"
     
     id = Column(Integer, primary_key=True)
-    model_id = Column(Integer, ForeignKey("models.id"))
+    model_id = Column(String(50), ForeignKey("models.id"))
     task_type = Column(String(50), nullable=False)  # 'outline' 或 'quiz'
     period_type = Column(String(20), nullable=False)  # 'daily', 'weekly', 'monthly'
     period_date = Column(DateTime, nullable=False)
