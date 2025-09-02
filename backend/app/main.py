@@ -90,7 +90,7 @@ async def root():
     """根路径"""
     return {
         "message": "Quiz-Lib Backend API",
-        "version": "1.0.0",
+        "version": "1.0.1",
         "docs": "/docs",
         "redoc": "/redoc",
     }
