@@ -29,7 +29,7 @@ router = APIRouter(prefix="/generation", tags=["generation"])
 async def log_api_request(
     session: AsyncSession,
     knowledge_id: int,
-    model_id: int,
+    model_id: str,
     request_type: str,
     prompt: str,
     request_params: Dict[str, Any],

@@ -33,7 +33,7 @@ class ModelUpdate(BaseModel):
 
 class ModelResponse(ModelBase):
     """模型响应schema"""
-    id: int
+    id: str
     created_at: datetime
     updated_at: datetime
     input_price_display: Optional[str] = None
@@ -79,7 +79,7 @@ class PromptTemplateResponse(PromptTemplateBase):
 class KnowledgeRecordBase(BaseModel):
     """知识记录基础schema"""
     title: str
-    model_id: int
+    model_id: str
     temperature: Optional[Decimal] = Field(0.7, ge=0, le=2)
     max_tokens: Optional[int] = Field(2000, gt=0)
     top_p: Optional[Decimal] = Field(1.0, ge=0, le=1)
@@ -132,7 +132,7 @@ class OutlineBase(BaseModel):
 class OutlineCreate(OutlineBase):
     """创建大纲schema"""
     knowledge_id: int
-    model_id: int
+    model_id: str
     
     class Config:
         protected_namespaces = ()
@@ -142,7 +142,7 @@ class OutlineResponse(OutlineBase):
     """大纲响应schema"""
     id: int
     knowledge_id: int
-    model_id: int
+    model_id: str
     created_at: datetime
     
     class Config:
@@ -189,7 +189,7 @@ class QuizBase(BaseModel):
 class QuizCreate(QuizBase):
     """创建题目schema"""
     chapter_id: int
-    model_id: int
+    model_id: str
     
     class Config:
         protected_namespaces = ()
@@ -199,7 +199,7 @@ class QuizResponse(QuizBase):
     """题目响应schema"""
     id: int
     chapter_id: int
-    model_id: int
+    model_id: str
     created_at: datetime
     
     class Config:
@@ -224,7 +224,7 @@ class APIRequestLogBase(BaseModel):
 class APIRequestLogCreate(APIRequestLogBase):
     """创建API请求日志schema"""
     knowledge_id: Optional[int] = None
-    model_id: int
+    model_id: str
     
     class Config:
         protected_namespaces = ()
@@ -234,7 +234,7 @@ class APIRequestLogResponse(APIRequestLogBase):
     """API请求日志响应schema"""
     id: int
     knowledge_id: Optional[int] = None
-    model_id: int
+    model_id: str
     created_at: datetime
     
     # 关联数据
@@ -249,7 +249,7 @@ class APIRequestLogResponse(APIRequestLogBase):
 class ModelPerformanceStatsResponse(BaseModel):
     """模型性能统计响应schema"""
     id: int
-    model_id: int
+    model_id: str
     task_type: str
     period_type: str
     period_date: datetime
@@ -273,7 +273,7 @@ class ModelPerformanceStatsResponse(BaseModel):
 class GenerateOutlineRequest(BaseModel):
     """生成大纲请求schema"""
     title: str
-    model_id: int
+    model_id: str
     temperature: Optional[Decimal] = Field(0.7, ge=0, le=2)
     max_tokens: Optional[int] = Field(2000, gt=0)
     top_p: Optional[Decimal] = Field(1.0, ge=0, le=1)
@@ -286,7 +286,7 @@ class GenerateOutlineRequest(BaseModel):
 class GenerateQuizRequest(BaseModel):
     """生成题目请求schema"""
     chapter_id: int
-    model_id: int
+    model_id: str
     question_count: Optional[int] = Field(10, gt=0, le=50)
     temperature: Optional[Decimal] = Field(0.7, ge=0, le=2)
     max_tokens: Optional[int] = Field(2000, gt=0)
@@ -310,7 +310,7 @@ class DashboardStats(BaseModel):
 
 class ModelStats(BaseModel):
     """模型统计数据"""
-    model_id: int
+    model_id: str
     model_name: str
     task_type: str
     avg_response_time_ms: float

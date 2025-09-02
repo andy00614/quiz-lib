@@ -129,9 +129,9 @@ async def list_knowledge(
             "created_at": record.created_at.isoformat(),
             "updated_at": record.updated_at.isoformat(),
             "model": {
-                "id": record.model.id,
-                "name": record.model.name,
-                "provider": record.model.provider
+                "id": record.model.id if record.model else "unknown",
+                "name": record.model.name if record.model else "Unknown Model",
+                "provider": record.model.provider if record.model else "unknown"
             },
             "parameters": {
                 "temperature": float(record.temperature or 0),
@@ -159,11 +159,11 @@ async def list_knowledge(
                 "failed_chapter_count": failed_chapter_count,
                 "completion_rate": (completed_chapter_count / total_chapter_count * 100) if total_chapter_count > 0 else 0,
                 "cost_calculation": {
-                    "model_name": record.model.name,
-                    "input_price_per_1m": float(record.model.input_price_per_1m or 0),
-                    "output_price_per_1m": float(record.model.output_price_per_1m or 0),
-                    "input_price_display": f"${float(record.model.input_price_per_1m or 0):.1f}/1M",
-                    "output_price_display": f"${float(record.model.output_price_per_1m or 0):.1f}/1M"
+                    "model_name": record.model.name if record.model else "Unknown Model",
+                    "input_price_per_1m": float(record.model.input_price_per_1m or 0) if record.model else 0.0,
+                    "output_price_per_1m": float(record.model.output_price_per_1m or 0) if record.model else 0.0,
+                    "input_price_display": f"${float(record.model.input_price_per_1m or 0):.1f}/1M" if record.model else "$0.0/1M",
+                    "output_price_display": f"${float(record.model.output_price_per_1m or 0):.1f}/1M" if record.model else "$0.0/1M"
                 },
                 "last_error": last_error_message
             },
