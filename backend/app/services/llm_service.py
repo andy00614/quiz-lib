@@ -105,7 +105,14 @@ class LLMService:
     def _get_provider(self, model: str) -> str:
         """获取模型提供商"""
         model_lower = model.lower()
-        if model_lower.startswith("gpt"):
+        if (model_lower.startswith("gpt") or 
+            model_lower.startswith("o1") or 
+            model_lower.startswith("o3") or 
+            model_lower.startswith("o4") or
+            model_lower.startswith("text-embedding") or
+            model_lower.startswith("codex") or
+            model_lower.startswith("computer-use") or
+            model_lower.startswith("omni-moderation")):
             return "openai"
         elif model_lower.startswith("claude"):
             return "anthropic"
@@ -122,14 +129,33 @@ class LLMService:
         try:
             logger.debug("openai_api_request", model=model, max_tokens=max_tokens)
             
-            response = await self.openai_client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=temperature,
-                max_tokens=max_tokens,
-                top_p=top_p,
-                stream=stream
-            )
+            # 构建基础请求参数
+            params = {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": stream
+            }
+            
+            # 某些新模型（如 GPT-5、o1 系列）有特殊的参数限制
+            models_with_restrictions = [
+                "gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-5-chat-latest",
+                "o1", "o1-mini", "o1-pro", 
+                "o3", "o3-mini", "o3-pro", "o3-deep-research",
+                "o4-mini", "o4-mini-deep-research"
+            ]
+            
+            if model in models_with_restrictions:
+                # 这些模型使用 max_completion_tokens 而不是 max_tokens
+                params["max_completion_tokens"] = max_tokens
+                # 这些模型只支持默认 temperature=1，不添加 temperature 和 top_p 参数
+                logger.debug(f"Using restricted parameters for model {model}: max_completion_tokens={max_tokens}")
+            else:
+                # 标准模型支持所有参数
+                params["max_tokens"] = max_tokens
+                params["temperature"] = temperature
+                params["top_p"] = top_p
+            
+            response = await self.openai_client.chat.completions.create(**params)
             
             if stream:
                 # TODO: 处理流式响应
