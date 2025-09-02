@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Quiz-Lib Backend API",
     description="AI驱动的题库生成系统后端API",
-    version="1.0.0",
+    version="1.0.1",
     lifespan=lifespan,
 )
 
